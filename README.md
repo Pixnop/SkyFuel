@@ -28,4 +28,4 @@ Aucune installation possible pour le moment, mais vous pouvez toujours nous cont
 
 ## Contributeurs
 
-@Pixnop (le meilleur des développeurs !)
+@LeonFvt (le meilleur des développeurs !)
