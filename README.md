@@ -1,6 +1,6 @@
 # SkyFuel
 
-	SkyFuel est l'application indispensable pour les propriétaires de drones qui veulent s'assurer que leurs batteries sont toujours prêtes à prendre leur envol ! Avec SkyFuel, vous pouvez gérer toutes vos batteries de drone en un clin d'œil depuis votre téléphone.
+SkyFuel est l'application indispensable pour les propriétaires de drones qui veulent s'assurer que leurs batteries sont toujours prêtes à prendre leur envol ! Avec SkyFuel, vous pouvez gérer toutes vos batteries de drone en un clin d'œil depuis votre téléphone.
 
 ## Fonctionnalités clés
 
@@ -15,7 +15,7 @@ Rien de bien compliqué, juste un téléphone qui fonctionne et un brin de bonne
 
 ## Installation
 
-	Aucune installation possible pour le moment, mais vous pouvez toujours nous contacter pour nous faire part de vos suggestions !
+Aucune installation possible pour le moment, mais vous pouvez toujours nous contacter pour nous faire part de vos suggestions !
 
 ## Utilisation
 
