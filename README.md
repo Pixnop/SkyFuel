@@ -28,4 +28,5 @@ Aucune installation possible pour le moment, mais vous pouvez toujours nous cont
 
 ## Contributeurs
 
-@LeonFvt (le meilleur des développeurs !)
+@LeonFvt
+(le meilleur des développeurs !)
