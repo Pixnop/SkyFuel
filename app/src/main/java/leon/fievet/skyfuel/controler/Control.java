@@ -69,8 +69,20 @@ public final class Control {
     public Bitmap getQRCode(Context context) throws WriterException, IOException {
         return battery.getQRCode(context);
     }
-
     public ArrayList<Battery> getAllBat() {
         return AccesLocal.recupTous();
+    }
+    public Battery getBatteryById(int id) {
+        ArrayList<Battery> allBatteries = getAllBat();
+        for (Battery bat : allBatteries) {
+            if (bat.getId() == id) {
+                return bat;
+            }
+        }
+        return null;
+    }
+
+    public void updateBattery(Battery updatedBattery) {
+        AccesLocal.updateBattery(updatedBattery); // Méthode à ajouter dans AccesLocal
     }
 }

@@ -102,4 +102,16 @@ public class AccesLocal {
         bd.execSQL(req);
     }
 
+    public static void updateBattery(Battery battery) {
+        bd = accesBD.getWritableDatabase();
+        ContentValues values = new ContentValues();
+        values.put("nbCells", battery.getNbCells());
+        values.put("capacity", battery.getCapacity());
+        values.put("etatCharge", battery.getEtatCharge());
+        values.put("dateDerniereMisAJour", battery.getDateDerniereMisAJour().toString());
+        values.put("data", battery.getData());
+        bd.update("battery", values, "id = ?", new String[]{String.valueOf(battery.getId())});
+        bd.close();
+    }
+
 }

@@ -1,6 +1,7 @@
 package leon.fievet.skyfuel.views;
 
 import android.content.Context;
+import android.content.Intent;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -60,6 +61,17 @@ public class StorageListAdaptater extends BaseAdapter {
         } else if (battery.isLow()) {
             holder.imgEtat.setImageResource(R.drawable.ic_bat_low);
         }
+
+        // Ajout de l'OnClickListener
+        convertView.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(v.getContext(), EditBatteryActivity.class); // Nom hypothétique de l'activité d'édition
+                intent.putExtra("batteryId", battery.getId());
+                v.getContext().startActivity(intent);
+            }
+        });
+
         return convertView;
     }
     private static class ViewHolder {

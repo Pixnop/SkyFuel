@@ -133,5 +133,11 @@ public class Battery {
     }
 
 
-
+    public void updateBattery(Integer nbCells, Integer capacity, Integer etatCharge) {
+        this.nbCells = nbCells;
+        this.capacity = capacity;
+        this.etatCharge = etatCharge;
+        this.dateDerniereMisAJour = OffsetDateTime.now();
+        this.data = nbCells.toString() + "-" + capacity.toString() + "-" + etatCharge.toString() + "-" + dateDerniereMisAJour.toString();
+    }
 }
