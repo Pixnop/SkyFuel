@@ -10,13 +10,14 @@ public class MySQLiteOpenHelper extends SQLiteOpenHelper {
 
     // propriétés
     private String creation = "CREATE TABLE battery (" +
-            "id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+            "id TEXT PRIMARY KEY, " +
             "nbCells INTEGER NOT NULL, " +
             "capacity INTEGER NOT NULL, " +
             "etatCharge INTEGER NOT NULL, " +
             "dateEnregistrement TEXT NOT NULL, " +
             "dateDerniereMisAJour TEXT NOT NULL, " +
             "data TEXT NOT NULL);";
+
 
     /**
      * Constructeur de la classe

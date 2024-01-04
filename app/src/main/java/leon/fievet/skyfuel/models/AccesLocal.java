@@ -11,6 +11,7 @@ import android.util.Log;
 
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.UUID;
 
 import leon.fievet.skyfuel.tools.MySQLiteOpenHelper;
 
@@ -35,14 +36,15 @@ public class AccesLocal {
      */
     public long ajout(Battery battery) {
         bd = accesBD.getWritableDatabase();
-        String req = "INSERT INTO battery (nbCells, capacity, etatCharge, dateEnregistrement, dateDerniereMisAJour, data) VALUES (?, ?, ?, ?, ?, ?)";
+        String req = "INSERT INTO battery (id, nbCells, capacity, etatCharge, dateEnregistrement, dateDerniereMisAJour, data) VALUES (?, ?, ?, ?, ?, ?, ?)";
         SQLiteStatement statement = bd.compileStatement(req);
-        statement.bindLong(1, battery.getNbCells());
-        statement.bindLong(2, battery.getCapacity());
-        statement.bindLong(3, battery.getEtatCharge());
-        statement.bindString(4, battery.getDateEnregistrement().toString());
-        statement.bindString(5, battery.getDateDerniereMisAJour().toString());
-        statement.bindString(6, battery.getData());
+        statement.bindString(1, battery.getId().toString());
+        statement.bindLong(2, battery.getNbCells());
+        statement.bindLong(3, battery.getCapacity());
+        statement.bindLong(4, battery.getEtatCharge());
+        statement.bindString(5, battery.getDateEnregistrement().toString());
+        statement.bindString(6, battery.getDateDerniereMisAJour().toString());
+        statement.bindString(7, battery.getData());
         long id = statement.executeInsert();
         statement.close();
         bd.close();
@@ -56,14 +58,14 @@ public class AccesLocal {
         Cursor curseur = bd.rawQuery(req, null);
         curseur.moveToLast();
         if (!curseur.isAfterLast()){
-            Integer id = curseur.getInt(0);
+            UUID id = UUID.fromString(curseur.getString(0));
             Integer nbCells = curseur.getInt(1);
             Integer capacity = curseur.getInt(2);
             Integer EtatCharge = curseur.getInt(3);
             OffsetDateTime dateEnregistrement = stringToDate(curseur.getString(4));
             OffsetDateTime dateDerniereMisAJour = stringToDate(curseur.getString(5));
             String data = curseur.getString(6);
-            battery = new Battery(nbCells, capacity, EtatCharge, dateEnregistrement);
+            battery = new Battery(id,nbCells, capacity, EtatCharge, dateEnregistrement);
             battery.setDateDerniereMisAJour(dateDerniereMisAJour);
             battery.setData(data);
         }
@@ -73,32 +75,44 @@ public class AccesLocal {
 
     public static ArrayList<Battery> recupTous() {
         bd = accesBD.getReadableDatabase();
-        ArrayList<Battery> lesBatteries = new ArrayList<Battery>();
+        ArrayList<Battery> lesBatteries = new ArrayList<>();
         String req = "select * from battery;";
         Cursor curseur = bd.rawQuery(req, null);
         curseur.moveToFirst();
-        while (!curseur.isAfterLast()){
-            Integer id = curseur.getInt(0);
-            Integer nbCells = curseur.getInt(1);
-            Integer capacity = curseur.getInt(2);
-            Integer EtatCharge = curseur.getInt(3);
-            OffsetDateTime dateEnregistrement = stringToDate(curseur.getString(4));
-            OffsetDateTime dateDerniereMisAJour = stringToDate(curseur.getString(5));
-            String data = curseur.getString(6);
-            Battery battery = new Battery(nbCells, capacity, EtatCharge, dateEnregistrement);
-            battery.setId(id);
-            battery.setDateDerniereMisAJour(dateDerniereMisAJour);
-            battery.setData(data);
-            lesBatteries.add(battery);
+        while (!curseur.isAfterLast()) {
+            String uuidString = curseur.getString(0);
+            UUID id = null;
+            if (uuidString != null && !uuidString.isEmpty()) {
+                try {
+                    id = UUID.fromString(uuidString);
+                } catch (IllegalArgumentException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            if (id != null) {
+                Integer nbCells = curseur.getInt(1);
+                Integer capacity = curseur.getInt(2);
+                Integer etatCharge = curseur.getInt(3);
+                OffsetDateTime dateEnregistrement = stringToDate(curseur.getString(4));
+                OffsetDateTime dateDerniereMisAJour = stringToDate(curseur.getString(5));
+                String data = curseur.getString(6);
+                Battery battery = new Battery(id, nbCells, capacity, etatCharge, dateEnregistrement);
+                battery.setId(id);
+                battery.setDateDerniereMisAJour(dateDerniereMisAJour);
+                battery.setData(data);
+                lesBatteries.add(battery);
+            }
             curseur.moveToNext();
         }
         curseur.close();
         return lesBatteries;
     }
 
+
     public static void suprimmerProfil(Battery battery) {
         bd = accesBD.getWritableDatabase();
-        String req = "delete from battery where id = '" + battery.getId() + "';";
+        String req = "delete from battery where id = '" + battery.getId().toString() + "';";
         bd.execSQL(req);
     }
 
@@ -110,7 +124,7 @@ public class AccesLocal {
         values.put("etatCharge", battery.getEtatCharge());
         values.put("dateDerniereMisAJour", battery.getDateDerniereMisAJour().toString());
         values.put("data", battery.getData());
-        bd.update("battery", values, "id = ?", new String[]{String.valueOf(battery.getId())});
+        bd.update("battery", values, "id = ?", new String[]{battery.getId().toString()});
         bd.close();
     }
 

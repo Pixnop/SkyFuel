@@ -11,13 +11,12 @@ import leon.fievet.skyfuel.controler.Control;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.util.UUID;
+
 public class EditBatteryActivity extends AppCompatActivity {
     private int batteryId;
     private Battery battery;
     private Control controle;
-
-    private EditText editNbCells;
-    private EditText editCapacity;
     private Button btnSaveChanges;
     private RadioGroup rgEtatCharge;
 
@@ -25,21 +24,32 @@ public class EditBatteryActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_edit_battery); // Layout hypothétique pour l'édition
+        setContentView(R.layout.activity_edit_battery);
 
         controle = Control.getInstance(this);
 
-        batteryId = getIntent().getIntExtra("batteryId", -1);
-        if (batteryId != -1) {
-            battery = controle.getBatteryById(batteryId); // Méthode hypothétique pour obtenir une batterie par ID
+        // Récupération de l'ID de la batterie sous forme de String
+        String batteryIdString = getIntent().getStringExtra("batteryId");
+        UUID batteryId = null;
+
+        // Conversion de la String en UUID
+        if (batteryIdString != null && !batteryIdString.isEmpty()) {
+            try {
+                batteryId = UUID.fromString(batteryIdString);
+            } catch (IllegalArgumentException e) {
+                e.printStackTrace();
+            }
+        }
+
+        if (batteryId != null) {
+            battery = controle.getBatteryById(batteryId);
             initViews();
             displayBatteryInfo();
         }
     }
 
+
     private void initViews() {
-        editNbCells = findViewById(R.id.editNbCells);
-        editCapacity = findViewById(R.id.editCapacity);
         btnSaveChanges = findViewById(R.id.btnSaveChanges);
         rgEtatCharge = findViewById(R.id.rgEtatCharge);
 
@@ -49,23 +59,18 @@ public class EditBatteryActivity extends AppCompatActivity {
     }
 
     private void displayBatteryInfo() {
-        editNbCells.setText(String.valueOf(battery.getNbCells()));
-        editCapacity.setText(String.valueOf(battery.getCapacity()));
-
         int etatCharge = battery.getEtatCharge();
-        if (etatCharge == 0) { // Supposons que 0 représente "Low"
+        if (etatCharge == 0) {
             rgEtatCharge.check(R.id.rbLow);
-        } else if (etatCharge == 1) { // Supposons que 1 représente "Storage"
+        } else if (etatCharge == 1) {
             rgEtatCharge.check(R.id.rbStorage);
-        } else if (etatCharge == 2) { // Supposons que 2 représente "Full"
+        } else if (etatCharge == 2) {
             rgEtatCharge.check(R.id.rbFull);
         }
     }
 
 
     private void updateBatteryInfo() {
-        int newNbCells = Integer.parseInt(editNbCells.getText().toString());
-        int newCapacity = Integer.parseInt(editCapacity.getText().toString());
         int newEtatCharge;
 
         int checkedId = rgEtatCharge.getCheckedRadioButtonId();
@@ -77,7 +82,7 @@ public class EditBatteryActivity extends AppCompatActivity {
             newEtatCharge = 2;
         }
 
-        battery.updateBattery(newNbCells, newCapacity, newEtatCharge);
+        battery.updateBattery(newEtatCharge);
         controle.updateBattery(battery);
 
         finish();

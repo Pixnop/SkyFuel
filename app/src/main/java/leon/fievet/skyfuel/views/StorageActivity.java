@@ -3,6 +3,7 @@ package leon.fievet.skyfuel.views;
 import androidx.appcompat.app.AppCompatActivity;
 
 import android.os.Bundle;
+import android.util.Log;
 import android.widget.ListView;
 
 import java.util.ArrayList;
@@ -25,10 +26,12 @@ public class StorageActivity extends AppCompatActivity {
     private void afficheStorage() {
         ArrayList<Battery> lesBattery = controle.getAllBat();
         if (lesBattery.size() > 0) {
-            // affichage de la liste
             ListView lv = findViewById(R.id.lsStorage);
             StorageListAdaptater adapteur = new StorageListAdaptater(lesBattery, this);
             lv.setAdapter(adapteur);
+        } else {
+            Log.d("StorageActivity", "Aucune batterie à afficher.");
         }
     }
+
 }

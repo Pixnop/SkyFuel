@@ -16,11 +16,12 @@ import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 
 import leon.fievet.skyfuel.tools.outils;
 
 public class Battery {
-    private Integer id;
+    private UUID id;
     private Integer nbCells;
     private Integer capacity;
     private Integer etatCharge; // 0 = low, 1 = storage, 2 = full
@@ -30,12 +31,23 @@ public class Battery {
     private Bitmap QRCode;
 
     public Battery(Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) {
+        this.id = UUID.randomUUID();
         this.nbCells = nbCells;
         this.capacity = capacity;
         this.etatCharge = etatCharge;
         this.dateEnregistrement = dateEnregistrement;
         this.dateDerniereMisAJour = dateEnregistrement;
-        this.data = nbCells.toString() +"-"+ capacity.toString() +"-"+ etatCharge.toString() +"-"+ dateEnregistrement.toString();
+        this.data = id.toString() + "-" + nbCells.toString() + "-" + capacity.toString() + "-" + dateEnregistrement.toString();
+    }
+
+    public Battery(UUID id, Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) {
+        this.id = id;
+        this.nbCells = nbCells;
+        this.capacity = capacity;
+        this.etatCharge = etatCharge;
+        this.dateEnregistrement = dateEnregistrement;
+        this.dateDerniereMisAJour = dateEnregistrement;
+        this.data = id.toString() + "-" + nbCells.toString() + "-" + capacity.toString() + "-" + dateEnregistrement.toString();
     }
 
     public Integer getNbCells() {
@@ -92,11 +104,11 @@ public class Battery {
         this.QRCode = QRCode;
     }
 
-    public Integer getId() {
+    public UUID getId() {
         return id;
     }
 
-    public void setId(Integer id) {
+    public void setId(UUID id) {
         this.id = id;
     }
 
@@ -133,11 +145,8 @@ public class Battery {
     }
 
 
-    public void updateBattery(Integer nbCells, Integer capacity, Integer etatCharge) {
-        this.nbCells = nbCells;
-        this.capacity = capacity;
+    public void updateBattery(Integer etatCharge) {
         this.etatCharge = etatCharge;
         this.dateDerniereMisAJour = OffsetDateTime.now();
-        this.data = nbCells.toString() + "-" + capacity.toString() + "-" + etatCharge.toString() + "-" + dateDerniereMisAJour.toString();
     }
 }

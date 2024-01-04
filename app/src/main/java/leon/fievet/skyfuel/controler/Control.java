@@ -2,6 +2,7 @@ package leon.fievet.skyfuel.controler;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.util.Log;
 
 import com.google.zxing.WriterException;
 
@@ -9,6 +10,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
+import java.util.UUID;
 
 import leon.fievet.skyfuel.models.AccesLocal;
 import leon.fievet.skyfuel.models.Battery;
@@ -38,8 +40,7 @@ public final class Control {
 
     public void creerBattery(Integer nbCells, Integer capacity, Integer etatCharge) {
         battery = new Battery(nbCells, capacity, etatCharge, OffsetDateTime.now());
-        int id = (int) accesLocal.ajout(battery);
-        battery.setId(id);
+        accesLocal.ajout(battery);
     }
 
     public Integer getNbCells() {
@@ -70,17 +71,21 @@ public final class Control {
         return battery.getQRCode(context);
     }
     public ArrayList<Battery> getAllBat() {
-        return AccesLocal.recupTous();
+        ArrayList<Battery> lesBatteries = AccesLocal.recupTous();
+        Log.d("StorageActivity", "Nombre de batteries récupérées : " + lesBatteries.size());
+        return lesBatteries;
     }
-    public Battery getBatteryById(int id) {
+
+    public Battery getBatteryById(UUID id) {
         ArrayList<Battery> allBatteries = getAllBat();
         for (Battery bat : allBatteries) {
-            if (bat.getId() == id) {
+            if (bat.getId().equals(id)) {
                 return bat;
             }
         }
         return null;
     }
+
 
     public void updateBattery(Battery updatedBattery) {
         AccesLocal.updateBattery(updatedBattery); // Méthode à ajouter dans AccesLocal
