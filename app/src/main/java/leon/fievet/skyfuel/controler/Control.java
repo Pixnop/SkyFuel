@@ -6,6 +6,8 @@ import android.util.Log;
 
 import com.google.zxing.WriterException;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.time.OffsetDateTime;
@@ -28,7 +30,7 @@ public final class Control {
         super();
     }
 
-    public static final Control getInstance(Context contexte) {
+    public static final Control getInstance(Context contexte) throws JSONException {
         if (Control.instance == null) {
             Control.instance = new Control();
             accesLocal = new AccesLocal(contexte);
@@ -38,7 +40,7 @@ public final class Control {
         return Control.instance;
     }
 
-    public void creerBattery(Integer nbCells, Integer capacity, Integer etatCharge) {
+    public void creerBattery(Integer nbCells, Integer capacity, Integer etatCharge) throws JSONException {
         battery = new Battery(nbCells, capacity, etatCharge, OffsetDateTime.now());
         accesLocal.ajout(battery);
     }
@@ -70,13 +72,13 @@ public final class Control {
     public Bitmap getQRCode(Context context) throws WriterException, IOException {
         return battery.getQRCode(context);
     }
-    public ArrayList<Battery> getAllBat() {
+    public ArrayList<Battery> getAllBat() throws JSONException {
         ArrayList<Battery> lesBatteries = AccesLocal.recupTous();
         Log.d("StorageActivity", "Nombre de batteries récupérées : " + lesBatteries.size());
         return lesBatteries;
     }
 
-    public Battery getBatteryById(UUID id) {
+    public Battery getBatteryById(UUID id) throws JSONException {
         ArrayList<Battery> allBatteries = getAllBat();
         for (Battery bat : allBatteries) {
             if (bat.getId().equals(id)) {

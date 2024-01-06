@@ -6,6 +6,8 @@ import android.os.Bundle;
 import android.util.Log;
 import android.widget.ListView;
 
+import org.json.JSONException;
+
 import java.util.ArrayList;
 
 import leon.fievet.skyfuel.R;
@@ -19,11 +21,19 @@ public class StorageActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_storage);
-        this.controle = Control.getInstance(this);
-        afficheStorage();
+        try {
+            this.controle = Control.getInstance(this);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+        try {
+            afficheStorage();
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private void afficheStorage() {
+    private void afficheStorage() throws JSONException {
         ArrayList<Battery> lesBattery = controle.getAllBat();
         if (lesBattery.size() > 0) {
             ListView lv = findViewById(R.id.lsStorage);

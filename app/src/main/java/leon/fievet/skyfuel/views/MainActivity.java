@@ -33,6 +33,9 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.util.UUID;
 
 import leon.fievet.skyfuel.R;
@@ -52,20 +55,25 @@ public class MainActivity extends AppCompatActivity {
                 } else {
                     Log.d("MainActivity", "Scanned");
 
-                    // Extraction des données du scan
-                    String[] data = result.getContents().split("/");
-                    // Vérification que l'ID est au format UUID
-                    Toast.makeText(MainActivity.this, "Battery ID: " + data[0], Toast.LENGTH_LONG).show();
+                    // Analyse des données du scan
+                    String batteryIdString = null;
                     try {
-                        UUID batteryId = UUID.fromString(data[0]);
+                        JSONObject jsonData = new JSONObject(result.getContents());
+                        batteryIdString = jsonData.getString("id");
+                        Toast.makeText(MainActivity.this, "Battery ID: " + batteryIdString, Toast.LENGTH_LONG).show();
+
+                        UUID batteryId = UUID.fromString(batteryIdString);
                         Log.d("MainActivity", "Battery ID: " + batteryId.toString());
 
                         // Redirection vers EditBatteryActivity avec l'ID de la batterie
                         Intent intent = new Intent(MainActivity.this, EditBatteryActivity.class);
                         intent.putExtra("batteryId", batteryId.toString());
                         startActivity(intent);
+                    } catch (JSONException e) {
+                        Log.e("MainActivity", "Error parsing JSON", e);
+                        Toast.makeText(MainActivity.this, "Invalid QR Code", Toast.LENGTH_LONG).show();
                     } catch (IllegalArgumentException e) {
-                        Log.e("MainActivity", "Invalid UUID format: " + data[0], e);
+                        Log.e("MainActivity", "Invalid UUID format: " + batteryIdString, e);
                         Toast.makeText(MainActivity.this, "Invalid battery ID", Toast.LENGTH_LONG).show();
                     }
                 }

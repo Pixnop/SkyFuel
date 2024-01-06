@@ -9,6 +9,8 @@ import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteStatement;
 import android.util.Log;
 
+import org.json.JSONException;
+
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.UUID;
@@ -51,7 +53,7 @@ public class AccesLocal {
         return id;
     }
 
-    public Battery recupDernier() {
+    public Battery recupDernier() throws JSONException {
         bd = accesBD.getReadableDatabase();
         Battery battery = null;
         String req = "select * from battery;";
@@ -73,7 +75,7 @@ public class AccesLocal {
         return battery;
     }
 
-    public static ArrayList<Battery> recupTous() {
+    public static ArrayList<Battery> recupTous() throws JSONException {
         bd = accesBD.getReadableDatabase();
         ArrayList<Battery> lesBatteries = new ArrayList<>();
         String req = "select * from battery;";

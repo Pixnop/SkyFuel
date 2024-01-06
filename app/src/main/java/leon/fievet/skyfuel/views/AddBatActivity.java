@@ -12,6 +12,8 @@ import android.widget.Toast;
 
 import com.google.zxing.WriterException;
 
+import org.json.JSONException;
+
 import java.io.IOException;
 
 import leon.fievet.skyfuel.R;
@@ -23,7 +25,11 @@ public class AddBatActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_add_bat);
-        init();
+        try {
+            init();
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private EditText txtNbCells;
@@ -34,7 +40,7 @@ public class AddBatActivity extends AppCompatActivity {
     private Control control;
 
 
-    public void init(){
+    public void init() throws JSONException {
         txtNbCells = findViewById(R.id.txtNbCells);
         txtCapacity = findViewById(R.id.txtCapacity);
         rbFull = findViewById(R.id.rbFull);
@@ -68,7 +74,7 @@ public class AddBatActivity extends AppCompatActivity {
                     // affichage du résultat
                     try {
                         afficheResultat(nbCellsEc, capacityEc, etatChargeEC);
-                    } catch (WriterException | IOException e) {
+                    } catch (WriterException | IOException | JSONException e) {
                         throw new RuntimeException(e);
                     }
                 }
@@ -76,7 +82,7 @@ public class AddBatActivity extends AppCompatActivity {
         });
     }
 
-    private void afficheResultat(Integer nbCellsEc, Integer capacityEc, Integer etatChargeEC) throws WriterException, IOException {
+    private void afficheResultat(Integer nbCellsEc, Integer capacityEc, Integer etatChargeEC) throws WriterException, IOException, JSONException {
         this.control.creerBattery(nbCellsEc, capacityEc, etatChargeEC);
         imgQr.setImageBitmap(this.control.getQRCode(this));
     }

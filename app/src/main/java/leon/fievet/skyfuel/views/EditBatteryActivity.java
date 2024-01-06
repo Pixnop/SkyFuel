@@ -11,6 +11,8 @@ import leon.fievet.skyfuel.controler.Control;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import org.json.JSONException;
+
 import java.io.Serializable;
 import java.util.UUID;
 
@@ -27,7 +29,11 @@ public class EditBatteryActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_edit_battery);
 
-        controle = Control.getInstance(this);
+        try {
+            controle = Control.getInstance(this);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
 
         // Récupération de l'ID de la batterie sous forme de String
         String batteryIdString = getIntent().getStringExtra("batteryId");
@@ -42,7 +48,11 @@ public class EditBatteryActivity extends AppCompatActivity {
             }
         }
         if (batteryId != null) {
-            battery = controle.getBatteryById(batteryId);
+            try {
+                battery = controle.getBatteryById(batteryId);
+            } catch (JSONException e) {
+                throw new RuntimeException(e);
+            }
             initViews();
             displayBatteryInfo();
         }

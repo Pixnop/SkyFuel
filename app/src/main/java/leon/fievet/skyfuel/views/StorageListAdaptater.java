@@ -10,6 +10,8 @@ import android.widget.ImageButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
+import org.json.JSONException;
+
 import java.util.ArrayList;
 
 import leon.fievet.skyfuel.R;
@@ -21,7 +23,7 @@ public class StorageListAdaptater extends BaseAdapter {
     private LayoutInflater inflater;
     private Control controle;
 
-    public StorageListAdaptater(ArrayList<Battery> lesBattery, Context context) {
+    public StorageListAdaptater(ArrayList<Battery> lesBattery, Context context) throws JSONException {
         this.lesBattery = lesBattery;
         this.inflater = LayoutInflater.from(context);
         this.controle = Control.getInstance(null);

@@ -12,6 +12,9 @@ import com.google.zxing.MultiFormatWriter;
 import com.google.zxing.WriterException;
 import com.google.zxing.common.BitMatrix;
 
+import org.json.JSONException;
+import org.json.JSONObject;
+
 import java.io.IOException;
 import java.io.OutputStream;
 import java.time.LocalDateTime;
@@ -30,24 +33,33 @@ public class Battery {
     private String data;
     private Bitmap QRCode;
 
-    public Battery(Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) {
+    public Battery(Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) throws JSONException {
         this.id = UUID.randomUUID();
         this.nbCells = nbCells;
         this.capacity = capacity;
         this.etatCharge = etatCharge;
         this.dateEnregistrement = dateEnregistrement;
         this.dateDerniereMisAJour = dateEnregistrement;
-        this.data = id.toString() + "/" + nbCells.toString() + "/" + capacity.toString() + "/" + dateEnregistrement.toString();
+        this.data = toJSONString();
     }
 
-    public Battery(UUID id, Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) {
+    public Battery(UUID id, Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) throws JSONException {
         this.id = id;
         this.nbCells = nbCells;
         this.capacity = capacity;
         this.etatCharge = etatCharge;
         this.dateEnregistrement = dateEnregistrement;
         this.dateDerniereMisAJour = dateEnregistrement;
-        this.data = id.toString() + "-" + nbCells.toString() + "-" + capacity.toString() + "-" + dateEnregistrement.toString();
+        this.data = toJSONString();
+    }
+
+    public String toJSONString() throws JSONException {
+        JSONObject json = new JSONObject();
+        json.put("id", id.toString());
+        json.put("nbCells", nbCells);
+        json.put("capacity", capacity);
+        json.put("dateEnregistrement", dateEnregistrement.toString());
+        return json.toString();
     }
 
     public Integer getNbCells() {
