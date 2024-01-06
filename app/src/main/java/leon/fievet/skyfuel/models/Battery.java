@@ -37,7 +37,7 @@ public class Battery {
         this.etatCharge = etatCharge;
         this.dateEnregistrement = dateEnregistrement;
         this.dateDerniereMisAJour = dateEnregistrement;
-        this.data = id.toString() + "-" + nbCells.toString() + "-" + capacity.toString() + "-" + dateEnregistrement.toString();
+        this.data = id.toString() + "/" + nbCells.toString() + "/" + capacity.toString() + "/" + dateEnregistrement.toString();
     }
 
     public Battery(UUID id, Integer nbCells, Integer capacity, Integer etatCharge, OffsetDateTime dateEnregistrement) {

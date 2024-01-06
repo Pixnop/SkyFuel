@@ -33,6 +33,8 @@ import androidx.activity.result.ActivityResultLauncher;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.fragment.app.Fragment;
 
+import java.util.UUID;
+
 import leon.fievet.skyfuel.R;
 
 public class MainActivity extends AppCompatActivity {
@@ -49,9 +51,26 @@ public class MainActivity extends AppCompatActivity {
                     }
                 } else {
                     Log.d("MainActivity", "Scanned");
-                    Toast.makeText(MainActivity.this, "Scanned: " + result.getContents(), Toast.LENGTH_LONG).show();
+
+                    // Extraction des données du scan
+                    String[] data = result.getContents().split("/");
+                    // Vérification que l'ID est au format UUID
+                    Toast.makeText(MainActivity.this, "Battery ID: " + data[0], Toast.LENGTH_LONG).show();
+                    try {
+                        UUID batteryId = UUID.fromString(data[0]);
+                        Log.d("MainActivity", "Battery ID: " + batteryId.toString());
+
+                        // Redirection vers EditBatteryActivity avec l'ID de la batterie
+                        Intent intent = new Intent(MainActivity.this, EditBatteryActivity.class);
+                        intent.putExtra("batteryId", batteryId.toString());
+                        startActivity(intent);
+                    } catch (IllegalArgumentException e) {
+                        Log.e("MainActivity", "Invalid UUID format: " + data[0], e);
+                        Toast.makeText(MainActivity.this, "Invalid battery ID", Toast.LENGTH_LONG).show();
+                    }
                 }
             });
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -85,7 +104,6 @@ public class MainActivity extends AppCompatActivity {
             }
         });
     }
-
 
     public void scanBarcode(View view) {
         ScanOptions options = new ScanOptions();

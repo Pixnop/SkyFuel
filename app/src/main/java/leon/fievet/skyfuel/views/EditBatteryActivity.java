@@ -11,6 +11,7 @@ import leon.fievet.skyfuel.controler.Control;
 
 import androidx.appcompat.app.AppCompatActivity;
 
+import java.io.Serializable;
 import java.util.UUID;
 
 public class EditBatteryActivity extends AppCompatActivity {
@@ -40,7 +41,6 @@ public class EditBatteryActivity extends AppCompatActivity {
                 e.printStackTrace();
             }
         }
-
         if (batteryId != null) {
             battery = controle.getBatteryById(batteryId);
             initViews();
@@ -48,11 +48,9 @@ public class EditBatteryActivity extends AppCompatActivity {
         }
     }
 
-
     private void initViews() {
         btnSaveChanges = findViewById(R.id.btnSaveChanges);
         rgEtatCharge = findViewById(R.id.rgEtatCharge);
-
         btnSaveChanges.setOnClickListener(v -> {
             updateBatteryInfo();
         });
@@ -69,10 +67,8 @@ public class EditBatteryActivity extends AppCompatActivity {
         }
     }
 
-
     private void updateBatteryInfo() {
         int newEtatCharge;
-
         int checkedId = rgEtatCharge.getCheckedRadioButtonId();
         if (checkedId == R.id.rbLow) {
             newEtatCharge = 0;
@@ -81,10 +77,8 @@ public class EditBatteryActivity extends AppCompatActivity {
         } else {
             newEtatCharge = 2;
         }
-
         battery.updateBattery(newEtatCharge);
         controle.updateBattery(battery);
-
         finish();
     }
 

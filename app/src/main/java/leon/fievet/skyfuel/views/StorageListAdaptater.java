@@ -66,11 +66,12 @@ public class StorageListAdaptater extends BaseAdapter {
         convertView.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(v.getContext(), EditBatteryActivity.class); // Nom hypothétique de l'activité d'édition
-                intent.putExtra("batteryId", battery.getId());
+                Intent intent = new Intent(v.getContext(), EditBatteryActivity.class);
+                intent.putExtra("batteryId", battery.getId().toString());
                 v.getContext().startActivity(intent);
             }
         });
+
 
         return convertView;
     }

@@ -86,8 +86,7 @@ public final class Control {
         return null;
     }
 
-
     public void updateBattery(Battery updatedBattery) {
-        AccesLocal.updateBattery(updatedBattery); // Méthode à ajouter dans AccesLocal
+        AccesLocal.updateBattery(updatedBattery);
     }
 }
