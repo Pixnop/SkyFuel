@@ -34,8 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import leonfvt.skyfuel_app.data.model.Battery
-import leonfvt.skyfuel_app.data.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.ui.components.BatteryCard
 import leonfvt.skyfuel_app.ui.viewmodel.BatteriesLoadState
 import leonfvt.skyfuel_app.ui.viewmodel.BatteryViewModel

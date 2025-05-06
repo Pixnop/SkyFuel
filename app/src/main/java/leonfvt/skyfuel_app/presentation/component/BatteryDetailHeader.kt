@@ -1,22 +1,43 @@
 package leonfvt.skyfuel_app.presentation.component
 
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.BatteryStd
+import androidx.compose.material.icons.filled.Battery4Bar
+import androidx.compose.material.icons.filled.Error
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.rounded.AccessTime
+import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Loop
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -27,29 +48,34 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.BatteryType
+import leonfvt.skyfuel_app.presentation.theme.HealthCritical
+import leonfvt.skyfuel_app.presentation.theme.HealthExcellent
+import leonfvt.skyfuel_app.presentation.theme.HealthGood
+import leonfvt.skyfuel_app.presentation.theme.HealthModerate
+import leonfvt.skyfuel_app.presentation.theme.HealthPoor
+import leonfvt.skyfuel_app.presentation.theme.StatusAvailable
+import leonfvt.skyfuel_app.presentation.theme.StatusDecommissioned
+import leonfvt.skyfuel_app.presentation.theme.StatusInUse
+import leonfvt.skyfuel_app.presentation.theme.StatusMaintenance
 import leonfvt.skyfuel_app.presentation.theme.SkyFuelTheme
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.BatteryChargingFull
-import androidx.compose.material.icons.filled.BatteryFull
-import androidx.compose.material.icons.filled.BatteryStd
-import androidx.compose.material.icons.filled.Error
+import java.time.temporal.ChronoUnit
 
 /**
- * Entête des détails d'une batterie avec indicateur de santé circulaire
+ * En-tête moderne des détails d'une batterie avec indicateur de santé circulaire
+ * et informations détaillées organisées avec une meilleure visualisation des données
  */
 @Composable
 fun BatteryDetailHeader(
@@ -60,7 +86,7 @@ fun BatteryDetailHeader(
     var progress by remember { mutableFloatStateOf(0f) }
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
-        animationSpec = tween(durationMillis = 1500),
+        animationSpec = tween(durationMillis = 1500, easing = LinearEasing),
         label = "Health progress animation"
     )
     
@@ -69,10 +95,11 @@ fun BatteryDetailHeader(
     
     // Définir la couleur de la santé
     val healthColor = when {
-        healthPercentage > 75 -> Color(0xFF4CAF50) // Vert
-        healthPercentage > 50 -> Color(0xFF8BC34A) // Vert clair
-        healthPercentage > 25 -> Color(0xFFFFC107) // Jaune
-        else -> Color(0xFFF44336) // Rouge
+        healthPercentage > 80 -> HealthExcellent
+        healthPercentage > 60 -> HealthGood
+        healthPercentage > 40 -> HealthModerate
+        healthPercentage > 20 -> HealthPoor
+        else -> HealthCritical
     }
     
     // Lancer l'animation au chargement
@@ -80,123 +107,151 @@ fun BatteryDetailHeader(
         progress = healthPercentage / 100f
     }
     
-    Card(
+    // Calcul de l'âge de la batterie pour l'affichage
+    val ageInDays = battery.getAgeInDays()
+    val ageDisplay = when {
+        ageInDays < 30 -> "$ageInDays jours"
+        ageInDays < 365 -> "${ageInDays / 30} mois"
+        else -> "${ageInDays / 365} ans"
+    }
+    
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .padding(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        )
+            .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
+        // Card principale avec les informations essentielles
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.elevatedCardElevation(
+                defaultElevation = 6.dp
+            ),
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.elevatedCardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
         ) {
-            // Indicateur de santé circulaire
-            Box(
+            Column(
                 modifier = Modifier
-                    .size(100.dp)
-                    .padding(8.dp),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                CircularProgressIndicator(
-                    progress = { 1f },
-                    modifier = Modifier.size(100.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    strokeWidth = 8.dp,
-                    strokeCap = StrokeCap.Round
-                )
-                
-                CircularProgressIndicator(
-                    progress = { animatedProgress },
-                    modifier = Modifier.size(100.dp),
-                    color = healthColor,
-                    strokeWidth = 8.dp,
-                    strokeCap = StrokeCap.Round
-                )
-                
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally
+                // Titre et type
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    // Icône de statut au centre
-                    val icon = when (battery.status) {
-                        BatteryStatus.CHARGED -> Icons.Default.BatteryChargingFull
-                        BatteryStatus.DISCHARGED -> Icons.Default.BatteryStd
-                        BatteryStatus.STORAGE -> Icons.Default.BatteryFull
-                        BatteryStatus.OUT_OF_SERVICE -> Icons.Default.Error
-                    }
-                    
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = getStatusColor(battery.status),
-                        modifier = Modifier.size(24.dp)
-                    )
-                    
                     Text(
-                        text = "$healthPercentage%",
+                        text = "${battery.brand} ${battery.model}",
                         style = MaterialTheme.typography.headlineSmall,
                         fontWeight = FontWeight.Bold,
-                        color = healthColor
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    SuggestionChip(
+                        onClick = { /* Non cliquable */ },
+                        label = { Text(battery.type.name) },
+                        icon = {
+                            Icon(
+                                imageVector = Icons.Filled.Memory,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        },
+                        colors = SuggestionChipDefaults.suggestionChipColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            labelColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            iconContentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     )
                 }
-            }
-            
-            Spacer(modifier = Modifier.size(16.dp))
-            
-            // Informations principales
-            Column(
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    text = "${battery.brand} ${battery.model}",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
                 
-                Spacer(modifier = Modifier.height(4.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
+                // Section principale avec indicateur de santé et informations
                 Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(IntrinsicSize.Min),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    BatteryTypeChip(battery.type)
-                    StatusChip(battery.status)
+                    // Indicateur de santé circulaire
+                    HealthIndicator(
+                        healthPercentage = healthPercentage,
+                        healthColor = healthColor,
+                        progress = animatedProgress,
+                        batteryStatus = battery.status,
+                        modifier = Modifier.size(140.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    // Séparateur vertical
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .fillMaxHeight()
+                            .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+                    )
+                    
+                    Spacer(modifier = Modifier.width(16.dp))
+                    
+                    // Informations détaillées
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        // Numéro de série
+                        InfoRow(
+                            label = "Numéro de série",
+                            value = battery.serialNumber,
+                            icon = Icons.Rounded.Bolt,
+                            iconTint = MaterialTheme.colorScheme.primary
+                        )
+                        
+                        // Capacité et cellules
+                        InfoRow(
+                            label = "Capacité",
+                            value = "${battery.cells}S - ${battery.capacity} mAh",
+                            icon = Icons.Filled.Battery4Bar,
+                            iconTint = MaterialTheme.colorScheme.secondary
+                        )
+                        
+                        // Cycles
+                        InfoRow(
+                            label = "Cycles",
+                            value = "${battery.cycleCount}",
+                            icon = Icons.Rounded.Loop,
+                            iconTint = MaterialTheme.colorScheme.tertiary
+                        )
+                        
+                        // Âge
+                        InfoRow(
+                            label = "Âge",
+                            value = ageDisplay,
+                            icon = Icons.Rounded.AccessTime,
+                            iconTint = MaterialTheme.colorScheme.error
+                        )
+                        
+                        // Date d'achat
+                        InfoRow(
+                            label = "Achat",
+                            value = battery.purchaseDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)),
+                            icon = Icons.Rounded.DateRange,
+                            iconTint = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
                 }
                 
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(12.dp))
                 
-                Text(
-                    text = "S/N: ${battery.serialNumber}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                )
-                
-                Spacer(modifier = Modifier.height(2.dp))
-                
-                Text(
-                    text = "${battery.cells}S - ${battery.capacity} mAh",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                
-                Spacer(modifier = Modifier.height(2.dp))
-                
-                Text(
-                    text = "Cycles: ${battery.cycleCount}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                
-                Spacer(modifier = Modifier.height(2.dp))
-                
-                Text(
-                    text = "Achetée le: ${battery.purchaseDate.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                // Statut actuel
+                StatusChip(
+                    status = battery.status,
+                    modifier = Modifier.align(Alignment.End)
                 )
             }
         }
@@ -204,21 +259,180 @@ fun BatteryDetailHeader(
 }
 
 /**
- * Affichage du type de batterie (LiPo, etc.)
+ * Indicateur circulaire de santé amélioré avec animation
  */
 @Composable
-fun BatteryTypeChip(type: BatteryType) {
+fun HealthIndicator(
+    healthPercentage: Int,
+    healthColor: Color,
+    progress: Float,
+    batteryStatus: BatteryStatus,
+    modifier: Modifier = Modifier
+) {
     Box(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer)
-            .padding(horizontal = 8.dp, vertical = 4.dp)
+        modifier = modifier.padding(8.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = type.name,
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+        // Anneau de fond
+        CircularProgressIndicator(
+            progress = { 1f },
+            modifier = Modifier.size(140.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            strokeWidth = 10.dp,
+            strokeCap = StrokeCap.Round
         )
+        
+        // Anneau de progression
+        CircularProgressIndicator(
+            progress = { progress },
+            modifier = Modifier.size(140.dp),
+            color = healthColor,
+            strokeWidth = 10.dp,
+            strokeCap = StrokeCap.Round
+        )
+        
+        // Indicateur central avec informations
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            // Icône de statut
+            val icon = when (batteryStatus) {
+                BatteryStatus.CHARGED -> Icons.Default.BatteryChargingFull
+                BatteryStatus.DISCHARGED -> Icons.Default.BatteryStd
+                BatteryStatus.STORAGE -> Icons.Default.BatteryFull
+                BatteryStatus.OUT_OF_SERVICE -> Icons.Default.Error
+            }
+            
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(healthColor.copy(alpha = 0.1f))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = healthColor,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(4.dp))
+            
+            // Pourcentage de santé
+            Text(
+                text = "$healthPercentage%",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
+                color = healthColor
+            )
+            
+            Text(
+                text = "Santé",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
+ * Ligne d'information avec icône, label et valeur
+ */
+@Composable
+fun InfoRow(
+    label: String,
+    value: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconTint: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Icône avec fond coloré
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(iconTint.copy(alpha = 0.1f))
+                .padding(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = iconTint,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.width(8.dp))
+        
+        // Textes
+        Column {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+    }
+}
+
+/**
+ * Étiquette de statut améliorée
+ */
+@Composable
+fun StatusChip(
+    status: BatteryStatus,
+    modifier: Modifier = Modifier
+) {
+    val (color, text) = when (status) {
+        BatteryStatus.CHARGED -> StatusAvailable to "Chargée"
+        BatteryStatus.DISCHARGED -> StatusMaintenance to "Déchargée"
+        BatteryStatus.STORAGE -> StatusInUse to "Stockage"
+        BatteryStatus.OUT_OF_SERVICE -> StatusDecommissioned to "Hors service"
+    }
+    
+    Surface(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        color = color.copy(alpha = 0.1f),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = color.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelLarge,
+                color = color,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 

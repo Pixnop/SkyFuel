@@ -9,7 +9,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.usecase.DeleteBatteryUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryDetailUseCase
@@ -18,10 +17,14 @@ import leonfvt.skyfuel_app.domain.usecase.RecordVoltageReadingUseCase
 import leonfvt.skyfuel_app.domain.usecase.UpdateBatteryStatusUseCase
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailState
+import leonfvt.skyfuel_app.util.ErrorHandler
+import leonfvt.skyfuel_app.util.UseCaseExtensions.executeFlowUseCase
+import leonfvt.skyfuel_app.util.UseCaseExtensions.executeUseCase
 import javax.inject.Inject
 
 /**
  * ViewModel pour l'écran de détails d'une batterie
+ * Utilise les utilitaires de gestion d'erreurs pour plus de robustesse
  */
 @HiltViewModel
 class BatteryDetailViewModel @Inject constructor(
@@ -75,6 +78,9 @@ class BatteryDetailViewModel @Inject constructor(
             is BatteryDetailEvent.NavigateBack -> {
                 _navigationEvent.value = "back"
             }
+            is BatteryDetailEvent.ClearError -> {
+                clearError()
+            }
         }
     }
     
@@ -82,12 +88,15 @@ class BatteryDetailViewModel @Inject constructor(
      * Charge les détails de la batterie
      */
     private fun loadBatteryDetail() {
-        viewModelScope.launch {
-            _state.update { it.copy(isLoading = true) }
-            
-            try {
-                val battery = getBatteryDetailUseCase(batteryId)
-                
+        executeUseCase(
+            useCase = { getBatteryDetailUseCase(batteryId) },
+            onStart = { _state.update { it.copy(isLoading = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors du chargement des détails de la batterie $batteryId")
+                _state.update { it.copy(isLoading = false, error = errorMessage) }
+            },
+            onSuccess = { battery ->
                 _state.update {
                     it.copy(
                         battery = battery,
@@ -95,124 +104,103 @@ class BatteryDetailViewModel @Inject constructor(
                         error = if (battery == null) "Batterie non trouvée" else null
                     )
                 }
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        isLoading = false,
-                        error = e.message ?: "Erreur lors du chargement des détails"
-                    )
-                }
             }
-        }
+        )
     }
     
     /**
      * Charge l'historique de la batterie
      */
     private fun loadBatteryHistory() {
-        viewModelScope.launch {
-            _state.update { it.copy(isHistoryLoading = true) }
-            
-            try {
-                getBatteryHistoryUseCase(batteryId).collect { history ->
-                    _state.update {
-                        it.copy(
-                            batteryHistory = history,
-                            isHistoryLoading = false
-                        )
-                    }
-                }
-            } catch (e: Exception) {
+        executeFlowUseCase(
+            useCase = { getBatteryHistoryUseCase(batteryId) },
+            onStart = { _state.update { it.copy(isHistoryLoading = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors du chargement de l'historique de la batterie $batteryId")
+                _state.update { it.copy(isHistoryLoading = false, error = errorMessage) }
+            },
+            onEach = { history ->
                 _state.update {
                     it.copy(
-                        isHistoryLoading = false,
-                        error = e.message ?: "Erreur lors du chargement de l'historique"
+                        batteryHistory = history,
+                        isHistoryLoading = false
                     )
                 }
             }
-        }
+        )
     }
     
     /**
      * Met à jour le statut de la batterie
      */
     private fun updateBatteryStatus(newStatus: leonfvt.skyfuel_app.domain.model.BatteryStatus, notes: String) {
-        viewModelScope.launch {
-            try {
-                updateBatteryStatusUseCase(batteryId, newStatus, notes)
-                
+        executeUseCase(
+            useCase = { updateBatteryStatusUseCase(batteryId, newStatus, notes) },
+            onStart = { _state.update { it.copy(isActionInProgress = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors de la mise à jour du statut de la batterie $batteryId")
+                _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
+            },
+            onSuccess = { 
+                _state.update { it.copy(isActionInProgress = false) }
                 // Recharger les détails de la batterie pour refléter les changements
                 loadBatteryDetail()
                 loadBatteryHistory()
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(error = e.message ?: "Erreur lors de la mise à jour du statut")
-                }
             }
-        }
+        )
     }
     
     /**
      * Enregistre une mesure de tension
      */
     private fun recordVoltage(voltage: Float, notes: String) {
-        viewModelScope.launch {
-            try {
-                recordVoltageReadingUseCase(batteryId, voltage, notes)
-                
+        executeUseCase(
+            useCase = { recordVoltageReadingUseCase(batteryId, voltage, notes) },
+            onStart = { _state.update { it.copy(isActionInProgress = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors de l'enregistrement de tension pour la batterie $batteryId")
+                _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
+            },
+            onSuccess = {
+                _state.update { it.copy(isActionInProgress = false, voltageInput = "") }
                 // Recharger l'historique pour afficher la nouvelle mesure
                 loadBatteryHistory()
-                
-                // Réinitialiser le champ de saisie de tension
-                _state.update { it.copy(voltageInput = "") }
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(error = e.message ?: "Erreur lors de l'enregistrement de la tension")
-                }
             }
-        }
+        )
     }
     
     /**
      * Ajoute une note à la batterie
      */
     private fun addNote(note: String) {
-        viewModelScope.launch {
-            try {
-                // Appel à une méthode du repository pour ajouter une note
-                // (à implémenter dans une prochaine itération)
-                
-                // Recharger l'historique pour afficher la nouvelle note
-                loadBatteryHistory()
-                
-                // Réinitialiser le champ de saisie de note
-                _state.update { it.copy(noteInput = "") }
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(error = e.message ?: "Erreur lors de l'ajout de la note")
-                }
-            }
-        }
+        // Implémentation à venir dans une prochaine itération
+        // Pour l'instant, on simule le comportement
+        _state.update { it.copy(noteInput = "") }
     }
     
     /**
      * Supprime la batterie
      */
     private fun deleteBattery() {
-        viewModelScope.launch {
-            val battery = state.value.battery ?: return@launch
-            
-            try {
-                deleteBatteryUseCase(battery)
-                
+        val battery = state.value.battery ?: return
+        
+        executeUseCase(
+            useCase = { deleteBatteryUseCase(battery) },
+            onStart = { _state.update { it.copy(isActionInProgress = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors de la suppression de la batterie $batteryId")
+                _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
+            },
+            onSuccess = {
+                _state.update { it.copy(isActionInProgress = false) }
                 // Navigation vers l'écran précédent
                 _navigationEvent.value = "back"
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(error = e.message ?: "Erreur lors de la suppression de la batterie")
-                }
             }
-        }
+        )
     }
     
     /**
@@ -220,5 +208,12 @@ class BatteryDetailViewModel @Inject constructor(
      */
     fun onNavigationEventConsumed() {
         _navigationEvent.value = null
+    }
+    
+    /**
+     * Réinitialise l'erreur après l'avoir affichée
+     */
+    fun clearError() {
+        _state.update { it.copy(error = null) }
     }
 }

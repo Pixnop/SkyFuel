@@ -48,25 +48,16 @@ object AppModule {
     }
     
     /**
-     * Fournit le repository pour les batteries (domain layer)
+     * Fournit le repository pour les batteries
+     * Nous utilisons seulement l'interface du domaine (BatteryRepository) comme dépendance
+     * pour tous les composants qui en ont besoin, y compris les viewmodels et les usecases.
      */
     @Provides
     @Singleton
     fun provideBatteryRepository(
         batteryDao: BatteryDao,
         batteryHistoryDao: BatteryHistoryDao
-    ): leonfvt.skyfuel_app.domain.repository.BatteryRepository {
+    ): BatteryRepository {
         return BatteryRepositoryImpl(batteryDao, batteryHistoryDao)
-    }
-    
-    /**
-     * Fournit le repository pour les batteries (data layer alias)
-     */
-    @Provides
-    @Singleton
-    fun provideDataBatteryRepository(
-        repository: leonfvt.skyfuel_app.domain.repository.BatteryRepository
-    ): leonfvt.skyfuel_app.data.repository.BatteryRepository {
-        return leonfvt.skyfuel_app.data.repository.LegacyBatteryRepositoryWrapper(repository)
     }
 }

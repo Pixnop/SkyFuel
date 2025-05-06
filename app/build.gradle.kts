@@ -52,6 +52,8 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation("androidx.compose.material3:material3:1.2.0")
+    implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
     
@@ -76,6 +78,19 @@ dependencies {
     implementation(libs.hilt.android)
     kapt(libs.hilt.compiler)
     implementation(libs.androidx.hilt.navigation.compose)
+    
+    // QR Code scanning and generation
+    implementation(libs.zxing.core)
+    implementation(libs.zxing.android.embedded)
+    
+    // CameraX for QR code scanning
+    implementation(libs.androidx.camera.core)
+    implementation(libs.androidx.camera.camera2)
+    implementation(libs.androidx.camera.lifecycle)
+    implementation(libs.androidx.camera.view)
+    
+    // Permissions handling
+    implementation(libs.accompanist.permissions)
     
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

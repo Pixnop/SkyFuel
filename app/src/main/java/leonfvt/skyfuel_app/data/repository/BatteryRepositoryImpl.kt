@@ -11,12 +11,12 @@ import leonfvt.skyfuel_app.domain.model.BatteryEventType
 import leonfvt.skyfuel_app.domain.model.BatteryHistory
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.repository.BatteryRepository
-import java.time.LocalDate
 import java.time.LocalDateTime
 import javax.inject.Inject
 
 /**
  * Implémentation du repository de batteries utilisant Room comme source de données
+ * Implémente directement l'interface du domaine pour simplifier l'architecture
  */
 class BatteryRepositoryImpl @Inject constructor(
     private val batteryDao: BatteryDao,

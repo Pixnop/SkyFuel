@@ -1,5 +1,12 @@
 package leonfvt.skyfuel_app.presentation.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -14,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Battery5Bar
 import androidx.compose.material.icons.filled.Battery4Bar
@@ -22,14 +30,20 @@ import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Note
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.Divider
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -45,43 +59,114 @@ import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 /**
- * Liste chronologique de l'historique d'une batterie
+ * Liste chronologique moderne de l'historique d'une batterie
+ * avec animation et visualisation améliorée des événements
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun BatteryHistoryList(
     history: List<BatteryHistory>,
     isLoading: Boolean = false,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier) {
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp)
+    ) {
         when {
             isLoading -> {
-                androidx.compose.material3.CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(40.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 3.dp
+                    )
+                    
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    Text(
+                        text = "Chargement de l'historique...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
             history.isEmpty() -> {
                 EmptyHistory(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(16.dp)
+                        .padding(32.dp)
                         .align(Alignment.Center)
                 )
             }
             else -> {
-                LazyColumn(
+                ElevatedCard(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    elevation = CardDefaults.elevatedCardElevation(
+                        defaultElevation = 2.dp
+                    ),
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.elevatedCardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
                 ) {
-                    items(
-                        items = history,
-                        key = { it.id }
-                    ) { entry ->
-                        HistoryItem(entry = entry)
-                        Divider(
-                            modifier = Modifier.padding(vertical = 8.dp),
-                            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
-                        )
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        // Titre de la section
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.History,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            
+                            Spacer(modifier = Modifier.width(8.dp))
+                            
+                            Text(
+                                text = "Historique d'activité",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(350.dp), // Set a fixed height to avoid infinite height issue
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            items(
+                                items = history,
+                                key = { it.id }
+                            ) { entry ->
+                                HistoryItem(
+                                    entry = entry,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .animateItemPlacement(
+                                            animationSpec = spring(
+                                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                                stiffness = Spring.StiffnessLow
+                                            )
+                                        )
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -99,118 +184,181 @@ private fun EmptyHistory(modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
-            modifier = Modifier.size(48.dp)
+        Box(
+            modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.History,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        Text(
+            text = "Aucun historique disponible",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            fontWeight = FontWeight.Medium
         )
         
         Spacer(modifier = Modifier.height(8.dp))
         
         Text(
-            text = "Aucun historique disponible",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f)
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        Text(
             text = "Les activités de la batterie apparaîtront ici",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
     }
 }
 
 /**
- * Élément individuel d'historique
+ * Élément individuel d'historique avec design moderne
  */
 @Composable
 fun HistoryItem(
     entry: BatteryHistory,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.Top
-    ) {
-        // Icône d'événement avec fond coloré
-        EventIcon(
-            eventType = entry.eventType,
-            impact = entry.getEventImpact()
+    // Déterminer l'apparence selon le type d'événement
+    val impact = entry.getEventImpact()
+    val (icon, iconColor, label) = when (entry.eventType) {
+        BatteryEventType.STATUS_CHANGE -> Triple(
+            Icons.Default.Battery5Bar,
+            getImpactColor(impact),
+            "Changement de statut"
         )
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        // Contenu de l'événement
-        Column(
-            modifier = Modifier.weight(1f)
+        BatteryEventType.CYCLE_COMPLETED -> Triple(
+            Icons.Default.Battery4Bar,
+            getImpactColor(impact),
+            "Cycle complété"
+        )
+        BatteryEventType.VOLTAGE_READING -> Triple(
+            Icons.Default.ElectricBolt,
+            Color(0xFF2196F3), // Bleu
+            "Lecture de tension"
+        )
+        BatteryEventType.NOTE_ADDED -> Triple(
+            Icons.Default.Note,
+            Color(0xFF9C27B0), // Violet
+            "Note ajoutée"
+        )
+        BatteryEventType.MAINTENANCE -> Triple(
+            Icons.Default.Settings,
+            Color(0xFF009688), // Teal
+            "Maintenance"
+        )
+    }
+    
+    OutlinedCard(
+        modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.outlinedCardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+        ),
+        border = androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            verticalAlignment = Alignment.Top
         ) {
-            Text(
-                text = entry.getDescription(),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium
-            )
-            
-            if (entry.notes.isNotBlank()) {
-                Spacer(modifier = Modifier.height(2.dp))
-                
-                Text(
-                    text = entry.notes,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
+            // Icône d'événement avec fond coloré
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(iconColor.copy(alpha = 0.1f))
+                    .padding(8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = iconColor,
+                    modifier = Modifier.size(24.dp)
                 )
             }
             
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             
-            // Date et heure
-            Text(
-                text = entry.timestamp.format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-            )
+            // Contenu de l'événement
+            Column(
+                modifier = Modifier.weight(1f)
+            ) {
+                // Type d'événement en chip
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                        .padding(horizontal = 8.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = label,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // Description principale
+                Text(
+                    text = entry.getDescription(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                // Notes additionnelles si présentes
+                if (entry.notes.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    
+                    Text(
+                        text = entry.notes,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                Spacer(modifier = Modifier.height(6.dp))
+                
+                // Date et heure stylisées
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Default.History,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.width(4.dp))
+                    
+                    Text(
+                        text = entry.timestamp.format(DateTimeFormatter.ofPattern("dd MMM yyyy, HH:mm")),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
-    }
-}
-
-/**
- * Icône pour les différents types d'événements
- */
-@Composable
-fun EventIcon(
-    eventType: BatteryEventType,
-    impact: EventImpact,
-    modifier: Modifier = Modifier
-) {
-    // Paramètres visuels selon le type d'événement
-    val (icon, backgroundColor) = when (eventType) {
-        BatteryEventType.STATUS_CHANGE -> Icons.Default.Battery5Bar to getImpactColor(impact)
-        BatteryEventType.CYCLE_COMPLETED -> Icons.Default.Battery4Bar to getImpactColor(impact)
-        BatteryEventType.VOLTAGE_READING -> Icons.Default.ElectricBolt to Color(0xFF2196F3) // Bleu
-        BatteryEventType.NOTE_ADDED -> Icons.Default.Note to Color(0xFF9C27B0) // Violet
-        BatteryEventType.MAINTENANCE -> Icons.Default.Settings to Color(0xFF009688) // Teal
-    }
-    
-    Box(
-        modifier = modifier
-            .size(40.dp)
-            .clip(CircleShape)
-            .background(backgroundColor.copy(alpha = 0.1f))
-            .padding(8.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = backgroundColor
-        )
     }
 }
 

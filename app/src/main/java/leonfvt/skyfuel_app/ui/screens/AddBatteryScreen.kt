@@ -37,7 +37,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import leonfvt.skyfuel_app.data.model.BatteryType
+import leonfvt.skyfuel_app.domain.model.BatteryType
 import leonfvt.skyfuel_app.ui.viewmodel.BatteryViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter

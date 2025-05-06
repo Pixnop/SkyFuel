@@ -12,10 +12,17 @@ data class BatteryDetailState(
     val batteryHistory: List<BatteryHistory> = emptyList(),
     val isLoading: Boolean = false,
     val isHistoryLoading: Boolean = false,
+    val isActionInProgress: Boolean = false,
     val error: String? = null,
     val voltageInput: String = "",
     val noteInput: String = ""
-)
+) {
+    /**
+     * Indique si une opération est en cours (chargement initial ou action)
+     */
+    val isAnyOperationInProgress: Boolean
+        get() = isLoading || isHistoryLoading || isActionInProgress
+}
 
 /**
  * Événements des détails d'une batterie
@@ -26,4 +33,5 @@ sealed class BatteryDetailEvent {
     data class AddNote(val note: String) : BatteryDetailEvent()
     data object DeleteBattery : BatteryDetailEvent()
     data object NavigateBack : BatteryDetailEvent()
+    data object ClearError : BatteryDetailEvent()
 }

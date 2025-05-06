@@ -33,7 +33,10 @@ data class BatteryEntity(
     // Informations supplémentaires
     val notes: String,
     val lastUseDate: LocalDate?,
-    val lastChargeDate: LocalDate?
+    val lastChargeDate: LocalDate?,
+    
+    // Identifiant unique pour QR code
+    val qrCodeId: String = ""
 ) {
     /**
      * Convertit l'entité en modèle de domaine
@@ -52,7 +55,8 @@ data class BatteryEntity(
             cycleCount = cycleCount,
             notes = notes,
             lastUseDate = lastUseDate,
-            lastChargeDate = lastChargeDate
+            lastChargeDate = lastChargeDate,
+            qrCodeId = qrCodeId
         )
     }
     
@@ -61,6 +65,10 @@ data class BatteryEntity(
          * Crée une entité à partir du modèle de domaine
          */
         fun fromDomainModel(battery: Battery): BatteryEntity {
+            // Génère un ID QR code si nécessaire
+            val qrId = if (battery.qrCodeId.isNotEmpty()) battery.qrCodeId 
+                       else "BATTERY_${battery.id}_${battery.serialNumber}"
+            
             return BatteryEntity(
                 id = battery.id,
                 brand = battery.brand,
@@ -74,7 +82,8 @@ data class BatteryEntity(
                 cycleCount = battery.cycleCount,
                 notes = battery.notes,
                 lastUseDate = battery.lastUseDate,
-                lastChargeDate = battery.lastChargeDate
+                lastChargeDate = battery.lastChargeDate,
+                qrCodeId = qrId
             )
         }
     }

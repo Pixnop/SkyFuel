@@ -10,11 +10,11 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import leonfvt.skyfuel_app.data.model.Battery
-import leonfvt.skyfuel_app.data.model.BatteryHistory
-import leonfvt.skyfuel_app.data.model.BatteryStatus
-import leonfvt.skyfuel_app.data.model.BatteryType
-import leonfvt.skyfuel_app.data.repository.BatteryRepository
+import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.model.BatteryHistory
+import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.BatteryType
+import leonfvt.skyfuel_app.domain.repository.BatteryRepository
 import java.time.LocalDate
 import javax.inject.Inject
 

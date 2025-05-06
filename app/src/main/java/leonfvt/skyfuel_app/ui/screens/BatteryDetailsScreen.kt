@@ -48,10 +48,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import leonfvt.skyfuel_app.data.model.Battery
-import leonfvt.skyfuel_app.data.model.BatteryEventType
-import leonfvt.skyfuel_app.data.model.BatteryHistory
-import leonfvt.skyfuel_app.data.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.model.BatteryEventType
+import leonfvt.skyfuel_app.domain.model.BatteryHistory
+import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.ui.components.getBatteryStatusColor
 import leonfvt.skyfuel_app.ui.components.getBatteryStatusText
 import leonfvt.skyfuel_app.ui.viewmodel.BatteryViewModel

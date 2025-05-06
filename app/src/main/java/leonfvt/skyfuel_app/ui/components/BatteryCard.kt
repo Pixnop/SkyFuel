@@ -27,9 +27,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import leonfvt.skyfuel_app.data.model.Battery
-import leonfvt.skyfuel_app.data.model.BatteryStatus
-import leonfvt.skyfuel_app.data.model.BatteryType
+import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.BatteryType
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle

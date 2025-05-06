@@ -4,9 +4,16 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,27 +27,29 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.pullrefresh.PullRefreshIndicator
-import androidx.compose.material.pullrefresh.pullRefresh
-import androidx.compose.material.pullrefresh.rememberPullRefreshState
+import androidx.compose.material.icons.filled.QrCodeScanner
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,27 +58,40 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import android.widget.Toast
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.BatteryStatistics
 import leonfvt.skyfuel_app.presentation.component.BatteryCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
 import leonfvt.skyfuel_app.presentation.component.FilterSection
+import leonfvt.skyfuel_app.presentation.component.QrScannerDialog
 import leonfvt.skyfuel_app.presentation.component.SearchBar
+import leonfvt.skyfuel_app.presentation.theme.StatusAvailable
+import leonfvt.skyfuel_app.presentation.theme.StatusDecommissioned
+import leonfvt.skyfuel_app.presentation.theme.StatusInUse
+import leonfvt.skyfuel_app.presentation.theme.StatusMaintenance
+import leonfvt.skyfuel_app.presentation.viewmodel.QrCodeViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryListEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryListState
 
 /**
- * Écran d'accueil principal (dashboard) de l'application SkyFuel
+ * Écran d'accueil principal moderne (dashboard) de l'application SkyFuel
+ * Utilise les dernières conventions Material 3 et des animations fluides
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterialApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun HomeScreen(
     state: BatteryListState,
@@ -78,23 +100,25 @@ fun HomeScreen(
     onNavigateToBatteryDetail: (Long) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val lazyListState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
+    val context = LocalContext.current
     
-    // État pour la fonctionnalité de pull-to-refresh
-    var refreshing by remember { mutableStateOf<Boolean>(false) }
-    val pullRefreshState = rememberPullRefreshState(
-        refreshing = refreshing,
-        onRefresh = {
-            refreshing = true
+    // État pour la boîte de dialogue de scan QR code
+    var showQrScanner by remember { mutableStateOf(false) }
+    var isSearchingBattery by remember { mutableStateOf(false) }
+    
+    // État pour la fonctionnalité de rafraîchissement
+    var isRefreshing by remember { mutableStateOf(false) }
+    
+    LaunchedEffect(isRefreshing) {
+        if (isRefreshing) {
             onEvent(BatteryListEvent.RefreshList)
-            coroutineScope.launch {
-                delay(1500) // Délai pour simuler le rafraîchissement
-                refreshing = false
-            }
+            delay(1500) // Délai pour simuler le rafraîchissement
+            isRefreshing = false
         }
-    )
+    }
     
     // Déterminer si le FAB doit être étendu
     val showExtendedFab by remember {
@@ -103,59 +127,159 @@ fun HomeScreen(
         }
     }
     
+    // Afficher la boîte de dialogue de scan QR code si nécessaire
+    if (showQrScanner) {
+        // Utilisez le viewModel QrCode via hiltViewModel()
+        val qrCodeViewModel: QrCodeViewModel = hiltViewModel()
+        
+        QrScannerDialog(
+            onDismiss = { showQrScanner = false },
+            viewModel = qrCodeViewModel,
+            onQrCodeScanned = { qrContent ->
+                isSearchingBattery = true
+                
+                // Utiliser l'extension utilitaire pour traiter le QR code
+                leonfvt.skyfuel_app.util.QrCodeExtensions.processBatteryQrCode(
+                    qrContent = qrContent,
+                    viewModel = qrCodeViewModel,
+                    scope = coroutineScope,
+                    onBatteryFound = { battery ->
+                        // Succès : batterie trouvée
+                        showQrScanner = false
+                        isSearchingBattery = false
+                        
+                        // Naviguer vers les détails de la batterie
+                        onNavigateToBatteryDetail(battery.id)
+                        
+                        // Afficher un message de confirmation
+                        Toast.makeText(
+                            context,
+                            "Batterie trouvée: ${battery.brand} ${battery.model}",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    },
+                    onError = { errorMessage ->
+                        // Échec : afficher l'erreur
+                        Toast.makeText(
+                            context,
+                            errorMessage,
+                            Toast.LENGTH_LONG
+                        ).show()
+                        
+                        showQrScanner = false
+                        isSearchingBattery = false
+                    }
+                )
+            }
+        )
+    }
+    
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
-            TopAppBar(
+            LargeTopAppBar(
                 title = {
                     Text(
                         text = "SkyFuel",
-                        style = MaterialTheme.typography.headlineSmall,
+                        style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.Bold
                     )
                 },
+                actions = {
+                    // Bouton Scanner QR Code avec animation
+                    IconButton(
+                        onClick = { showQrScanner = true },
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.QrCodeScanner,
+                            contentDescription = "Scanner un QR code",
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // Bouton de rafraîchissement
+                    IconButton(
+                        onClick = { isRefreshing = true },
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Rafraîchir",
+                            modifier = Modifier.size(26.dp),
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                },
                 scrollBehavior = scrollBehavior,
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    scrolledContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.95f)
                 )
             )
         },
         floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onNavigateToAddBattery,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Ajouter une batterie"
-                    )
-                },
-                text = {
-                    AnimatedVisibility(
-                        visible = showExtendedFab,
-                        enter = fadeIn(),
-                        exit = fadeOut()
+            Box {
+                // FAB Principal pour ajouter une batterie
+                ExtendedFloatingActionButton(
+                    onClick = onNavigateToAddBattery,
+                    icon = {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Ajouter une batterie"
+                        )
+                    },
+                    text = {
+                        AnimatedVisibility(
+                            visible = showExtendedFab,
+                            enter = fadeIn() + scaleIn(),
+                            exit = fadeOut() + scaleOut()
+                        ) {
+                            Text("Ajouter une batterie")
+                        }
+                    },
+                    expanded = showExtendedFab,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
+                )
+                
+                // FAB secondaire pour scanner (visible seulement en scroll)
+                AnimatedVisibility(
+                    visible = !showExtendedFab,
+                    enter = fadeIn() + scaleIn(),
+                    exit = fadeOut() + scaleOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(bottom = 72.dp)
+                ) {
+                    SmallFloatingActionButton(
+                        onClick = { showQrScanner = true },
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.shadow(4.dp, CircleShape)
                     ) {
-                        Text("Ajouter une batterie")
+                        Icon(
+                            imageVector = Icons.Default.QrCodeScanner,
+                            contentDescription = "Scanner un QR code"
+                        )
                     }
-                },
-                expanded = showExtendedFab,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                elevation = FloatingActionButtonDefaults.elevation(8.dp)
-            )
+                }
+            }
         }
     ) { paddingValues ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pullRefresh(pullRefreshState)
         ) {
-            // Add PullRefreshIndicator
-            PullRefreshIndicator(
-                refreshing = refreshing,
-                state = pullRefreshState,
-                modifier = Modifier.align(Alignment.TopCenter)
-            )
+            // Main content with SwipeRefresh
             AnimatedContent(
                 targetState = state,
                 transitionSpec = {
@@ -210,12 +334,20 @@ fun HomeScreen(
                     }
                 }
             }
+            
+            // Refreshing indicator
+            if (isRefreshing) {
+                CircularProgressIndicator(
+                    modifier = Modifier.align(Alignment.TopCenter),
+                    color = MaterialTheme.colorScheme.primaryContainer
+                )
+            }
         }
     }
 }
 
 /**
- * Écran de chargement
+ * Écran de chargement moderne avec animation
  */
 @Composable
 fun LoadingScreen(paddingValues: PaddingValues) {
@@ -225,15 +357,28 @@ fun LoadingScreen(paddingValues: PaddingValues) {
             .padding(paddingValues),
         contentAlignment = Alignment.Center
     ) {
-        CircularProgressIndicator(
-            color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(48.dp)
-        )
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            CircularProgressIndicator(
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(56.dp),
+                strokeWidth = 4.dp
+            )
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Text(
+                text = "Chargement...",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
 }
 
 /**
- * Écran d'erreur
+ * Écran d'erreur amélioré
  */
 @Composable
 fun ErrorScreen(
@@ -245,13 +390,22 @@ fun ErrorScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .padding(16.dp),
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
+        Icon(
+            imageVector = Icons.Default.BatteryUnknown,
+            contentDescription = null,
+            modifier = Modifier.size(80.dp),
+            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
         Text(
             text = "Une erreur est survenue",
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.error
         )
@@ -260,23 +414,28 @@ fun ErrorScreen(
         
         Text(
             text = errorMessage,
-            style = MaterialTheme.typography.bodyMedium,
-            textAlign = TextAlign.Center
+            style = MaterialTheme.typography.bodyLarge,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
         androidx.compose.material3.Button(
             onClick = onRetry,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            modifier = Modifier.height(48.dp)
         ) {
-            Text("Réessayer")
+            Text(
+                text = "Réessayer",
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
 
 /**
- * Écran vide (aucune batterie)
+ * Écran vide (aucune batterie) avec design moderne
  */
 @Composable
 fun EmptyScreen(
@@ -287,18 +446,26 @@ fun EmptyScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .padding(16.dp),
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        Icon(
-            imageVector = Icons.Default.BatteryUnknown,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-        )
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.BatteryUnknown,
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
         
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         Text(
             text = "Aucune batterie",
@@ -306,36 +473,40 @@ fun EmptyScreen(
             fontWeight = FontWeight.Bold
         )
         
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         Text(
             text = "Commencez par ajouter votre première batterie pour suivre son état et son utilisation.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
-        androidx.compose.material3.Button(
+        androidx.compose.material3.ElevatedButton(
             onClick = onAddBattery,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            modifier = Modifier.height(56.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Add,
                 contentDescription = null,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(20.dp)
             )
             
             Spacer(modifier = Modifier.size(8.dp))
             
-            Text("Ajouter une batterie")
+            Text(
+                text = "Ajouter une batterie",
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
 
 /**
- * Écran affiché quand aucune batterie ne correspond au filtre actif
+ * Écran affiché quand aucune batterie ne correspond au filtre actif (design moderne)
  */
 @Composable
 fun EmptyFilterScreen(
@@ -351,30 +522,38 @@ fun EmptyFilterScreen(
         BatteryStatus.OUT_OF_SERVICE -> "hors service"
     }
     
+    // Icône avec couleur spécifique au statut
+    val iconTint = when (filterStatus) {
+        BatteryStatus.CHARGED -> StatusAvailable
+        BatteryStatus.DISCHARGED -> StatusMaintenance
+        BatteryStatus.STORAGE -> StatusInUse
+        BatteryStatus.OUT_OF_SERVICE -> StatusDecommissioned
+    }
+    
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
-            .padding(16.dp),
+            .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Icône avec couleur spécifique au statut
-        val iconTint = when (filterStatus) {
-            BatteryStatus.CHARGED -> Color(0xFF4CAF50) // Vert
-            BatteryStatus.DISCHARGED -> Color(0xFFFFC107) // Jaune
-            BatteryStatus.STORAGE -> Color(0xFF2196F3) // Bleu
-            BatteryStatus.OUT_OF_SERVICE -> Color(0xFFE91E63) // Rose
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .clip(CircleShape)
+                .background(iconTint.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.BatteryUnknown,
+                contentDescription = null,
+                modifier = Modifier.size(72.dp),
+                tint = iconTint
+            )
         }
         
-        Icon(
-            imageVector = Icons.Default.BatteryUnknown,
-            contentDescription = null,
-            modifier = Modifier.size(72.dp),
-            tint = iconTint.copy(alpha = 0.6f)
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(24.dp))
         
         Text(
             text = "Aucune batterie $statusText",
@@ -383,20 +562,21 @@ fun EmptyFilterScreen(
             textAlign = TextAlign.Center
         )
         
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
         
         Text(
             text = "Il n'y a actuellement aucune batterie correspondant à ce filtre.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp))
         
-        androidx.compose.material3.Button(
+        androidx.compose.material3.OutlinedButton(
             onClick = onClearFilter,
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(8.dp)
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(24.dp),
+            modifier = Modifier.height(48.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.Check,
@@ -406,22 +586,26 @@ fun EmptyFilterScreen(
             
             Spacer(modifier = Modifier.size(8.dp))
             
-            Text("Afficher toutes les batteries")
+            Text(
+                text = "Afficher toutes les batteries",
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }
 
 /**
- * Écran principal avec contenu
+ * Écran principal avec contenu (modernisé)
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun ContentScreen(
     batteries: List<Battery>,
     searchQuery: String,
-    filterStatus: leonfvt.skyfuel_app.domain.model.BatteryStatus?,
+    filterStatus: BatteryStatus?,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
-    onFilterSelected: (leonfvt.skyfuel_app.domain.model.BatteryStatus?) -> Unit,
+    onFilterSelected: (BatteryStatus?) -> Unit,
     onBatteryClick: (Battery) -> Unit,
     onViewStats: () -> Unit,
     paddingValues: PaddingValues,
@@ -430,10 +614,10 @@ fun ContentScreen(
     // Statistiques calculées
     val stats = BatteryStatistics(
         totalCount = batteries.size,
-        chargedCount = batteries.count { it.status == leonfvt.skyfuel_app.domain.model.BatteryStatus.CHARGED },
-        dischargedCount = batteries.count { it.status == leonfvt.skyfuel_app.domain.model.BatteryStatus.DISCHARGED },
-        storageCount = batteries.count { it.status == leonfvt.skyfuel_app.domain.model.BatteryStatus.STORAGE },
-        outOfServiceCount = batteries.count { it.status == leonfvt.skyfuel_app.domain.model.BatteryStatus.OUT_OF_SERVICE },
+        chargedCount = batteries.count { it.status == BatteryStatus.CHARGED },
+        dischargedCount = batteries.count { it.status == BatteryStatus.DISCHARGED },
+        storageCount = batteries.count { it.status == BatteryStatus.STORAGE },
+        outOfServiceCount = batteries.count { it.status == BatteryStatus.OUT_OF_SERVICE },
         averageCycleCount = batteries.map { it.cycleCount }.average().toFloat()
     )
     
@@ -442,27 +626,36 @@ fun ContentScreen(
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        // Barre de recherche
-        SearchBar(
-            query = searchQuery,
-            onQueryChange = onSearchQueryChange,
-            onSearch = {},
-            onClear = onClearSearch
-        )
-        
-        Spacer(modifier = Modifier.height(4.dp))
-        
-        // Filtres
-        FilterSection(
-            currentFilter = filterStatus,
-            onFilterSelected = onFilterSelected
-        )
-        
-        // Liste des batteries
+        // Liste des batteries avec en-têtes
         LazyColumn(
             state = lazyListState,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+            // Barre de recherche (animée et épinglée)
+            stickyHeader {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
+                        .padding(bottom = 8.dp)
+                ) {
+                    // Barre de recherche améliorée
+                    SearchBar(
+                        query = searchQuery,
+                        onQueryChange = onSearchQueryChange,
+                        onSearch = {},
+                        onClear = onClearSearch
+                    )
+                    
+                    // Filtres
+                    FilterSection(
+                        currentFilter = filterStatus,
+                        onFilterSelected = onFilterSelected
+                    )
+                }
+            }
+            
             // Statistiques en haut de la liste
             item {
                 DashboardStats(
@@ -471,20 +664,26 @@ fun ContentScreen(
                 )
             }
             
-            // Liste des batteries
+            // Liste des batteries avec animations
             items(
                 items = batteries,
                 key = { it.id }
             ) { battery ->
                 BatteryCard(
                     battery = battery,
-                    onClick = { onBatteryClick(battery) }
+                    onClick = { onBatteryClick(battery) },
+                    modifier = Modifier.animateItemPlacement(
+                        animationSpec = spring(
+                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            stiffness = Spring.StiffnessLow
+                        )
+                    )
                 )
             }
             
             // Espace en bas de la liste
             item {
-                Spacer(modifier = Modifier.height(80.dp))
+                Spacer(modifier = Modifier.height(100.dp))
             }
         }
     }

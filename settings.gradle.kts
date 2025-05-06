@@ -16,6 +16,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Additional repository for ZXing and other dependencies
+        maven { url = uri("https://jitpack.io") }
     }
 }
 
