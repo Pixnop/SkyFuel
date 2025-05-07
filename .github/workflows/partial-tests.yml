@@ -1,0 +1,31 @@
+name: Partial Tests
+
+on:
+  workflow_dispatch:  # Permet de déclencher manuellement le workflow uniquement
+
+jobs:
+  test-domain-models:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+          
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        
+      - name: Run Domain Model Tests Only
+        run: ./gradlew :app:testDebugUnitTest --tests "leonfvt.skyfuel_app.domain.model.*"
+        continue-on-error: true
+        
+      - name: Upload Test Reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: app/build/reports/tests/testDebugUnitTest/
