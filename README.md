@@ -1,5 +1,8 @@
 # SkyFuel
 
+![Android CI](https://github.com/leonfvt/SkyFuel/workflows/Android%20CI/badge.svg)
+![Code Quality](https://github.com/leonfvt/SkyFuel/workflows/Code%20Quality%20Check/badge.svg)
+
 ## Application de Gestion de Batteries de Drone
 
 SkyFuel est une application dédiée à la gestion efficace des batteries de drone, permettant aux pilotes et aux opérateurs de maintenir leurs batteries en bon état, de suivre leur utilisation et d'optimiser leur durée de vie.

@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.MoveDown
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
@@ -152,7 +152,9 @@ fun BatteryQrCodeDialog(
                         Image(
                             bitmap = qrCodeBitmap,
                             contentDescription = "QR Code pour batterie ${battery.serialNumber}",
-                            modifier = Modifier.size(250.dp)
+                            modifier = Modifier
+                                .size(250.dp)
+                                .align(Alignment.Center)
                         )
                     } else {
                         // Fallback amélioré si le QR code ne peut pas être généré
@@ -248,7 +250,7 @@ fun BatteryQrCodeDialog(
                         )
                     ) {
                         Icon(
-                            imageVector = Icons.Default.MoveDown,
+                            imageVector = Icons.Default.Download,
                             contentDescription = null,
                             modifier = Modifier.size(20.dp)
                         )

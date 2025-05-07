@@ -60,7 +60,9 @@ fun BatteryForm(
     var batteryTypeExpanded by remember { mutableStateOf(false) }
     
     Column(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // Première ligne: Marque et modèle

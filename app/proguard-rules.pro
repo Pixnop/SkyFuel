@@ -14,8 +14,22 @@
 
 # Uncomment this to preserve the line number information for
 # debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+-keepattributes SourceFile,LineNumberTable
 
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
-#-renamesourcefileattribute SourceFile
+-renamesourcefileattribute SourceFile
+
+# Keep Room entities
+-keep class leonfvt.skyfuel_app.data.local.entity.** { *; }
+
+# Keep model classes
+-keep class leonfvt.skyfuel_app.domain.model.** { *; }
+
+# Keep ThreeTenABP classes
+-keep class org.threeten.bp.** { *; }
+
+# Keep GSON related classes
+-keepattributes Signature
+-keepattributes *Annotation*
+-dontwarn sun.misc.**

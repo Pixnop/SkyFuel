@@ -23,8 +23,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Battery5Bar
-import androidx.compose.material.icons.filled.Battery4Bar
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryFull
 import androidx.compose.material.icons.filled.ElectricBolt
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Lightbulb
@@ -230,14 +230,14 @@ fun HistoryItem(
 ) {
     // Déterminer l'apparence selon le type d'événement
     val impact = entry.getEventImpact()
-    val (icon, iconColor, label) = when (entry.eventType) {
+    val iconAndColorAndLabel: Triple<androidx.compose.ui.graphics.vector.ImageVector, Color, String> = when (entry.eventType) {
         BatteryEventType.STATUS_CHANGE -> Triple(
-            Icons.Default.Battery5Bar,
+            Icons.Default.BatteryChargingFull,
             getImpactColor(impact),
             "Changement de statut"
         )
         BatteryEventType.CYCLE_COMPLETED -> Triple(
-            Icons.Default.Battery4Bar,
+            Icons.Default.BatteryFull,
             getImpactColor(impact),
             "Cycle complété"
         )
@@ -257,6 +257,9 @@ fun HistoryItem(
             "Maintenance"
         )
     }
+    val icon = iconAndColorAndLabel.first
+    val iconColor = iconAndColorAndLabel.second
+    val label = iconAndColorAndLabel.third
     
     OutlinedCard(
         modifier = modifier,

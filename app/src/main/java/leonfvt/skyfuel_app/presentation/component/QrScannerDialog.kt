@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.QrCode2
+import androidx.compose.material.icons.filled.QrCode
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -72,7 +72,8 @@ fun QrScannerDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(600.dp),
+                .height(600.dp)
+                .size(width = androidx.compose.ui.unit.Dp.Unspecified, height = 600.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
@@ -122,7 +123,7 @@ fun QrScannerDialog(
                             modifier = Modifier.padding(16.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.QrCode2,
+                                imageVector = Icons.Default.QrCode,
                                 contentDescription = null,
                                 modifier = Modifier.size(48.dp),
                                 tint = MaterialTheme.colorScheme.primary

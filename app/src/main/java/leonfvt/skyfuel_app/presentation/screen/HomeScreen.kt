@@ -12,6 +12,10 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.material.ExperimentalMaterialApi
+import androidx.compose.material.pullrefresh.PullRefreshIndicator
+import androidx.compose.material.pullrefresh.pullRefresh
+import androidx.compose.material.pullrefresh.rememberPullRefreshState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -91,7 +95,7 @@ import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryListState
  * Écran d'accueil principal moderne (dashboard) de l'application SkyFuel
  * Utilise les dernières conventions Material 3 et des animations fluides
  */
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, ExperimentalMaterialApi::class)
 @Composable
 fun HomeScreen(
     state: BatteryListState,
@@ -112,9 +116,17 @@ fun HomeScreen(
     // État pour la fonctionnalité de rafraîchissement
     var isRefreshing by remember { mutableStateOf(false) }
     
+    // Configuration du state pour PullRefresh
+    val pullRefreshState = rememberPullRefreshState(
+        refreshing = isRefreshing,
+        onRefresh = {
+            isRefreshing = true
+            onEvent(BatteryListEvent.RefreshList)
+        }
+    )
+    
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
-            onEvent(BatteryListEvent.RefreshList)
             delay(1500) // Délai pour simuler le rafraîchissement
             isRefreshing = false
         }
@@ -190,29 +202,13 @@ fun HomeScreen(
                     IconButton(
                         onClick = { showQrScanner = true },
                         modifier = Modifier
-                            .padding(end = 8.dp)
+                            .padding(end = 16.dp)
                             .size(48.dp)
                             .clip(CircleShape)
                     ) {
                         Icon(
                             imageVector = Icons.Rounded.QrCodeScanner,
                             contentDescription = "Scanner un QR code",
-                            modifier = Modifier.size(26.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    
-                    // Bouton de rafraîchissement
-                    IconButton(
-                        onClick = { isRefreshing = true },
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                            .size(48.dp)
-                            .clip(CircleShape)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "Rafraîchir",
                             modifier = Modifier.size(26.dp),
                             tint = MaterialTheme.colorScheme.primary
                         )
@@ -278,6 +274,7 @@ fun HomeScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
+                .pullRefresh(pullRefreshState)
         ) {
             // Main content with SwipeRefresh
             AnimatedContent(
@@ -335,13 +332,14 @@ fun HomeScreen(
                 }
             }
             
-            // Refreshing indicator
-            if (isRefreshing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.TopCenter),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                )
-            }
+            // PullRefreshIndicator
+            PullRefreshIndicator(
+                refreshing = isRefreshing,
+                state = pullRefreshState,
+                modifier = Modifier.align(Alignment.TopCenter),
+                backgroundColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
