@@ -18,6 +18,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Donne les permissions d'écriture pour créer des releases
     steps:
       - uses: actions/checkout@v4
       
@@ -31,8 +33,13 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       
-      - name: Build Release APK
-        run: ./gradlew assembleRelease
+      - name: Build Debug & Release APK
+        run: |
+          ./gradlew assembleDebug
+          ./gradlew assembleRelease
+          
+      - name: List APK files
+        run: find app/build/outputs -name "*.apk" -type f
       
       - name: Sign APK
         if: false # Désactivé par défaut - à activer après avoir configuré la signature
@@ -69,8 +76,8 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            app/build/outputs/apk/release/app-release-unsigned.apk
-            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/debug/*.apk
           fail_on_unmatched_files: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
