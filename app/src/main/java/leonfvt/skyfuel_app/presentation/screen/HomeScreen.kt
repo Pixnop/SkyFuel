@@ -141,11 +141,20 @@ fun HomeScreen(
     
     // Afficher la boîte de dialogue de scan QR code si nécessaire
     if (showQrScanner) {
-        // Utilisez le viewModel QrCode via hiltViewModel()
+        // Créer une nouvelle instance du ViewModel QrCode à chaque scan
         val qrCodeViewModel: QrCodeViewModel = hiltViewModel()
         
+        // Réinitialiser l'état du scan au démarrage
+        LaunchedEffect(key1 = showQrScanner) {
+            qrCodeViewModel.resetScanState()
+        }
+        
         QrScannerDialog(
-            onDismiss = { showQrScanner = false },
+            onDismiss = { 
+                // Réinitialiser l'état lors de la fermeture
+                qrCodeViewModel.resetScanState()
+                showQrScanner = false 
+            },
             viewModel = qrCodeViewModel,
             onQrCodeScanned = { qrContent ->
                 isSearchingBattery = true
@@ -157,6 +166,7 @@ fun HomeScreen(
                     scope = coroutineScope,
                     onBatteryFound = { battery ->
                         // Succès : batterie trouvée
+                        qrCodeViewModel.resetScanState() // Réinitialiser l'état
                         showQrScanner = false
                         isSearchingBattery = false
                         
@@ -178,6 +188,7 @@ fun HomeScreen(
                             Toast.LENGTH_LONG
                         ).show()
                         
+                        qrCodeViewModel.resetScanState() // Réinitialiser l'état
                         showQrScanner = false
                         isSearchingBattery = false
                     }
