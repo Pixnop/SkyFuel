@@ -74,11 +74,46 @@ Si un workflow échoue, vérifiez les points suivants :
    - Consultez le rapport lint généré
    - Corrigez les problèmes signalés ou ajustez les règles lint si nécessaire
 
+### 3. Partial Tests (`partial-tests.yml`)
+
+Ce workflow permet de lancer seulement les tests qui fonctionnent correctement, sans faire échouer la build complète.
+
+**Étapes du workflow :**
+1. Checkout du code source
+2. Configuration de l'environnement Java 17
+3. Exécution ciblée des tests du domaine modèle uniquement
+4. Publication des rapports de test comme artefacts
+
+Ce workflow ne se déclenche que manuellement depuis l'interface GitHub Actions.
+
+### 4. Create Release (`release.yml`)
+
+Ce workflow permet de créer des releases GitHub avec les APK directement téléchargeables.
+
+**Étapes du workflow :**
+1. Checkout du code source
+2. Configuration de l'environnement Java 17
+3. Construction de l'APK de release
+4. Création d'une release GitHub avec l'APK attachée directement
+
+Ce workflow se déclenche :
+- Lors du push d'un tag commençant par "v" (ex: v1.0.0)
+- Manuellement depuis l'interface GitHub Actions
+
+**Pour créer une release manuellement :**
+1. Aller dans l'onglet "Actions" sur GitHub
+2. Sélectionner le workflow "Create Release"
+3. Cliquer sur "Run workflow"
+4. Renseigner le numéro de version et les notes de version
+5. Cliquer sur "Run workflow"
+
+Une fois la release créée, l'APK sera directement téléchargeable depuis la page de la release sans passer par un fichier ZIP.
+
 ## Extension future
 
 Voici les améliorations prévues pour le pipeline CI/CD :
 
 1. Déploiement automatique vers Firebase App Distribution pour les tests
-2. Génération et publication automatique des APK signés pour les versions de production
+2. Configuration de la signature automatique des APK pour les versions de production
 3. Automatisation des tests UI avec screenshot comparison
 4. Intégration d'outils d'analyse de code supplémentaires (Detekt, SonarQube)
