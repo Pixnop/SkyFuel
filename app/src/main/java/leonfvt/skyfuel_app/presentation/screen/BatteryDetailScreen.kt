@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
@@ -65,7 +66,10 @@ import leonfvt.skyfuel_app.presentation.component.BatteryActionsCard
 import leonfvt.skyfuel_app.presentation.component.BatteryDetailHeader
 import leonfvt.skyfuel_app.presentation.component.BatteryHistoryList
 import leonfvt.skyfuel_app.presentation.component.BatteryQrCodeDialog
+import leonfvt.skyfuel_app.presentation.component.ShareBatteryQrCodeDialog
+import leonfvt.skyfuel_app.presentation.component.BatteryDetailShimmer
 import leonfvt.skyfuel_app.util.QrCodeUtils
+import leonfvt.skyfuel_app.util.rememberHapticFeedback
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailState
 
@@ -78,15 +82,20 @@ import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailState
 fun BatteryDetailScreen(
     state: BatteryDetailState,
     onEvent: (BatteryDetailEvent) -> Unit,
+    onNavigateToHistory: (Long) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     val scrollState = rememberScrollState()
     val context = LocalContext.current
     
+    // Haptic feedback
+    val haptic = rememberHapticFeedback()
+    
     // État pour les boîtes de dialogue
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showQrCodeDialog by remember { mutableStateOf(false) }
+    var showShareDialog by remember { mutableStateOf(false) }
     
     // Affichage de la boîte de dialogue de confirmation de suppression
     if (showDeleteDialog) {
@@ -115,6 +124,7 @@ fun BatteryDetailScreen(
                 ) {
                     TextButton(
                         onClick = {
+                            haptic.performHeavy()
                             onEvent(BatteryDetailEvent.DeleteBattery)
                             showDeleteDialog = false
                         }
@@ -155,6 +165,22 @@ fun BatteryDetailScreen(
         )
     }
     
+    // Affichage de la boîte de dialogue de partage complet
+    if (showShareDialog && state.battery != null) {
+        ShareBatteryQrCodeDialog(
+            battery = state.battery,
+            onDismiss = { showShareDialog = false },
+            onShareFull = { bitmap ->
+                QrCodeUtils.shareQrCode(context, bitmap, state.battery, isShareMode = true)
+                showShareDialog = false
+            },
+            onShareSimple = { bitmap ->
+                QrCodeUtils.shareQrCode(context, bitmap, state.battery, isShareMode = false)
+                showShareDialog = false
+            }
+        )
+    }
+    
     Scaffold(
         modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -184,7 +210,7 @@ fun BatteryDetailScreen(
                 actions = {
                     // Action de partage
                     IconButton(
-                        onClick = { /* Fonctionnalité de partage */ },
+                        onClick = { showShareDialog = true },
                         modifier = Modifier
                             .padding(horizontal = 4.dp)
                             .clip(CircleShape)
@@ -279,6 +305,11 @@ fun BatteryDetailScreen(
                         onMaintenance = {
                             // Navigation vers l'écran de maintenance ou dialogue
                         },
+                        onViewFullHistory = {
+                            currentState.battery?.id?.let { batteryId ->
+                                onNavigateToHistory(batteryId)
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues)
@@ -295,28 +326,7 @@ fun BatteryDetailScreen(
  */
 @Composable
 fun LoadingContent(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier,
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(56.dp),
-                color = MaterialTheme.colorScheme.primary,
-                strokeWidth = 4.dp
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "Chargement des détails...",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    BatteryDetailShimmer(modifier = modifier)
 }
 
 /**
@@ -425,6 +435,7 @@ fun DetailContent(
     onVoltageRecord: (String, String) -> Unit,
     onAddNote: (String) -> Unit,
     onMaintenance: () -> Unit,
+    onViewFullHistory: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val battery = state.battery ?: return
@@ -460,15 +471,30 @@ fun DetailContent(
             
             Spacer(modifier = Modifier.weight(1f))
             
-            Text(
-                text = "${state.batteryHistory.size} événements",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            TextButton(onClick = onViewFullHistory) {
+                Text(
+                    text = "Voir tout",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                    contentDescription = null,
+                    modifier = Modifier.size(16.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
         }
         
+        Text(
+            text = "${state.batteryHistory.size} événements",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+        
         BatteryHistoryList(
-            history = state.batteryHistory,
+            history = state.batteryHistory.take(5),
             isLoading = state.isHistoryLoading
         )
         

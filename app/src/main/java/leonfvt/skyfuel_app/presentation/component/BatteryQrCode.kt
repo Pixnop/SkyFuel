@@ -41,6 +41,14 @@ import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.QrCodeData
 import leonfvt.skyfuel_app.util.QrCodeGenerator
 import leonfvt.skyfuel_app.presentation.viewmodel.QrCodeViewModel
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.BatteryFull
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import java.time.format.DateTimeFormatter
 
 /**
  * Composant qui affiche le QR Code d'une batterie dans une boîte de dialogue
@@ -264,5 +272,366 @@ fun BatteryQrCodeDialog(
                 }
             }
         }
+    }
+}
+
+
+/**
+ * Dialogue pour partager une batterie avec toutes ses données
+ * Génère un QR code contenant les informations complètes de la batterie
+ */
+@Composable
+fun ShareBatteryQrCodeDialog(
+    battery: Battery,
+    onDismiss: () -> Unit,
+    onShareFull: (Bitmap) -> Unit,
+    onShareSimple: (Bitmap) -> Unit,
+    viewModel: QrCodeViewModel = hiltViewModel()
+) {
+    // Générer le QR code de partage complet
+    val shareQrData = QrCodeData.forShareBattery(battery)
+    val shareQrContent = shareQrData.encode()
+    
+    val shareQrCodeBitmap = QrCodeGenerator.rememberQrCodeBitmap(
+        content = shareQrContent,
+        size = 300.dp,
+        padding = 2
+    )
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // En-tête
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PersonAdd,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Text(
+                        text = "Partager la batterie",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                
+                // Info batterie
+                Text(
+                    text = "${battery.brand} ${battery.model}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    textAlign = TextAlign.Center
+                )
+                
+                Text(
+                    text = "S/N: ${battery.serialNumber}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+                
+                // QR Code de partage
+                Box(
+                    modifier = Modifier
+                        .background(
+                            color = Color.White,
+                            shape = RoundedCornerShape(20.dp)
+                        )
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (shareQrCodeBitmap != null) {
+                        Image(
+                            bitmap = shareQrCodeBitmap,
+                            contentDescription = "QR Code de partage",
+                            modifier = Modifier.size(220.dp)
+                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(64.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = "Erreur de génération",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+                
+                // Information sur le partage
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Ce QR code contient toutes les informations de la batterie. Le destinataire pourra l'importer directement dans SkyFuel.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(4.dp))
+                
+                // Boutons
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Bouton partage complet
+                    Button(
+                        onClick = {
+                            viewModel.getShareBatteryQrCodeBitmap(battery, 512)?.let { bitmap ->
+                                onShareFull(bitmap)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.PersonAdd,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Partager (données complètes)")
+                    }
+                    
+                    // Bouton partage simple (référence uniquement)
+                    OutlinedButton(
+                        onClick = {
+                            viewModel.getBatteryQrCodeBitmap(battery, 512)?.let { bitmap ->
+                                onShareSimple(bitmap)
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.QrCode,
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Partager (référence seule)")
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Dialogue de confirmation pour importer une batterie depuis un QR code
+ */
+@Composable
+fun ImportBatteryConfirmDialog(
+    battery: Battery,
+    alreadyExists: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dateFormatter = DateTimeFormatter.ofPattern("dd/MM/yyyy")
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = true
+        )
+    ) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            shape = RoundedCornerShape(28.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            )
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(24.dp)
+                    .verticalScroll(rememberScrollState()),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // En-tête
+                Icon(
+                    imageVector = if (alreadyExists) Icons.Default.Warning else Icons.Default.BatteryFull,
+                    contentDescription = null,
+                    tint = if (alreadyExists) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(48.dp)
+                )
+                
+                Text(
+                    text = if (alreadyExists) "Batterie existante" else "Importer la batterie",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                // Détails de la batterie
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ImportDetailRow("Marque", battery.brand)
+                        ImportDetailRow("Modèle", battery.model)
+                        ImportDetailRow("N° Série", battery.serialNumber)
+                        ImportDetailRow("Type", battery.type.name)
+                        ImportDetailRow("Cellules", "${battery.cells}S")
+                        ImportDetailRow("Capacité", "${battery.capacity} mAh")
+                        ImportDetailRow("Cycles", battery.cycleCount.toString())
+                        ImportDetailRow("Achat", battery.purchaseDate.format(dateFormatter))
+                        ImportDetailRow("Statut", battery.status.name)
+                    }
+                }
+                
+                // Message d'avertissement si existe déjà
+                if (alreadyExists) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Une batterie avec ce numéro de série existe déjà dans votre inventaire.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        }
+                    }
+                }
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                // Boutons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(24.dp)
+                    ) {
+                        Text("Annuler")
+                    }
+                    
+                    Button(
+                        onClick = onConfirm,
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(24.dp),
+                        enabled = !alreadyExists,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Importer")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImportDetailRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }

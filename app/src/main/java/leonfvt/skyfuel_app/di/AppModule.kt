@@ -6,9 +6,11 @@ import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
+import leonfvt.skyfuel_app.BuildConfig
 import leonfvt.skyfuel_app.data.local.AppDatabase
 import leonfvt.skyfuel_app.data.local.dao.BatteryDao
 import leonfvt.skyfuel_app.data.local.dao.BatteryHistoryDao
+import leonfvt.skyfuel_app.data.local.dao.ChargeReminderDao
 import leonfvt.skyfuel_app.data.repository.BatteryRepositoryImpl
 import leonfvt.skyfuel_app.domain.repository.BatteryRepository
 import javax.inject.Singleton
@@ -19,14 +21,20 @@ import javax.inject.Singleton
 @Module
 @InstallIn(SingletonComponent::class)
 object AppModule {
-    
+
     /**
-     * Fournit l'instance de la base de données
+     * Fournit l'instance de la base de données.
+     *
+     * En mode DEBUG, permet la migration destructive pour faciliter le développement.
+     * En RELEASE, les migrations doivent être explicitement définies dans DatabaseMigrations.
      */
     @Provides
     @Singleton
     fun provideAppDatabase(@ApplicationContext context: Context): AppDatabase {
-        return AppDatabase.getDatabase(context)
+        return AppDatabase.getDatabase(
+            context = context,
+            allowDestructiveMigration = BuildConfig.DEBUG
+        )
     }
     
     /**
@@ -45,6 +53,15 @@ object AppModule {
     @Singleton
     fun provideBatteryHistoryDao(appDatabase: AppDatabase): BatteryHistoryDao {
         return appDatabase.batteryHistoryDao()
+    }
+    
+    /**
+     * Fournit le DAO pour les rappels de charge
+     */
+    @Provides
+    @Singleton
+    fun provideChargeReminderDao(appDatabase: AppDatabase): ChargeReminderDao {
+        return appDatabase.chargeReminderDao()
     }
     
     /**

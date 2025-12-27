@@ -1,11 +1,15 @@
 package leonfvt.skyfuel_app.domain.model
 
+import androidx.compose.runtime.Stable
 import java.time.LocalDate
 
 /**
  * Modèle de domaine représentant une batterie de drone
  * Cette classe est indépendante de la couche de données et contient la logique métier
+ * 
+ * @Stable indique à Compose que cette classe est immuable pour optimiser les recompositions
  */
+@Stable
 data class Battery(
     val id: Long = 0,
     

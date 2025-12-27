@@ -31,4 +31,10 @@ interface BatteryRepository {
     suspend fun getTotalBatteryCount(): Int
     suspend fun getBatteryCountByStatus(status: BatteryStatus): Int
     suspend fun getAverageCycleCount(): Float
+    
+    // Export/Import
+    suspend fun getAllHistory(): List<BatteryHistory>
+    suspend fun deleteAllBatteries()
+    suspend fun getBatteryBySerialNumber(serialNumber: String): Battery?
+    suspend fun insertBattery(battery: Battery): Long
 }

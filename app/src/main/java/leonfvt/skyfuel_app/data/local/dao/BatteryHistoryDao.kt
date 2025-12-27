@@ -30,4 +30,10 @@ interface BatteryHistoryDao {
     
     @Query("SELECT * FROM battery_history ORDER BY timestamp DESC LIMIT :limit")
     fun getRecentHistory(limit: Int): Flow<List<BatteryHistoryEntity>>
+    
+    @Query("SELECT * FROM battery_history ORDER BY timestamp DESC")
+    suspend fun getAllHistory(): List<BatteryHistoryEntity>
+    
+    @Query("DELETE FROM battery_history")
+    suspend fun deleteAllHistory()
 }

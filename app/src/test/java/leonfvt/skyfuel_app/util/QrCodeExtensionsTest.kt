@@ -1,19 +1,14 @@
 package leonfvt.skyfuel_app.util
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.test.advanceUntilIdle
-import kotlinx.coroutines.test.runTest
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.BatteryType
 import leonfvt.skyfuel_app.domain.model.QrCodeData
-import leonfvt.skyfuel_app.presentation.viewmodel.QrCodeViewModel
-import org.junit.Before
+import leonfvt.skyfuel_app.domain.model.QrCodeEntityType
+import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
-import org.mockito.Mock
-import org.mockito.Mockito.*
-import org.mockito.MockitoAnnotations
 import java.time.LocalDate
 
 @ExperimentalCoroutinesApi
@@ -21,9 +16,6 @@ class QrCodeExtensionsTest {
 
     @get:Rule
     val coroutineTestRule = CoroutineTestRule()
-
-    @Mock
-    private lateinit var qrCodeViewModel: QrCodeViewModel
 
     private val testBattery = Battery(
         id = 123,
@@ -39,39 +31,8 @@ class QrCodeExtensionsTest {
         notes = "Test battery"
     )
 
-    @Before
-    fun setup() {
-        MockitoAnnotations.openMocks(this)
-    }
-
     @Test
-    fun `processBatteryQrCode handles old format correctly`() = runTest {
-        // Arrange
-        val oldFormatQrCode = "BATTERY_123_SN123456"
-        var batteryFound: Battery? = null
-        var errorMessage: String? = null
-
-        // Act
-        QrCodeExtensions.processBatteryQrCode(
-            qrContent = oldFormatQrCode,
-            viewModel = qrCodeViewModel,
-            scope = this,
-            onBatteryFound = { battery -> batteryFound = battery },
-            onError = { error -> errorMessage = error }
-        )
-
-        // Vérifier que getBatteryFromQrCode est appelé avec le nouveau format
-        verify(qrCodeViewModel).getBatteryFromQrCode(
-            anyString(), 
-            any(), 
-            any()
-        )
-        
-        advanceUntilIdle()
-    }
-
-    @Test
-    fun `processBatteryQrCode handles new format correctly`() = runTest {
+    fun `QrCodeData encode and decode works correctly`() {
         // Arrange
         val qrData = QrCodeData.forBattery(
             batteryId = testBattery.id,
@@ -79,52 +40,72 @@ class QrCodeExtensionsTest {
             brand = testBattery.brand,
             model = testBattery.model
         )
-        val newFormatQrCode = qrData.encode()
-        var batteryFound: Battery? = null
-        var errorMessage: String? = null
 
         // Act
-        QrCodeExtensions.processBatteryQrCode(
-            qrContent = newFormatQrCode,
-            viewModel = qrCodeViewModel,
-            scope = this,
-            onBatteryFound = { battery -> batteryFound = battery },
-            onError = { error -> errorMessage = error }
-        )
+        val encoded = qrData.encode()
+        val decoded = QrCodeData.decode(encoded)
 
-        // Vérifier que getBatteryFromQrCode est appelé avec le bon contenu
-        verify(qrCodeViewModel).getBatteryFromQrCode(
-            eq(newFormatQrCode),
-            any(),
-            any()
-        )
-        
-        advanceUntilIdle()
+        // Assert
+        assertNotNull(decoded)
+        assertEquals(testBattery.id.toString(), decoded?.entityId)
     }
 
     @Test
-    fun `processBatteryQrCode handles invalid format correctly`() = runTest {
+    fun `QrCodeData decodes valid format correctly`() {
         // Arrange
-        val invalidQrCode = "INVALID_FORMAT"
-        var batteryFound: Battery? = null
-        var errorMessage: String? = null
+        val validQrString = "SKYFUEL::BATTERY::123::1617295200000::1"
 
         // Act
-        QrCodeExtensions.processBatteryQrCode(
-            qrContent = invalidQrCode,
-            viewModel = qrCodeViewModel,
-            scope = this,
-            onBatteryFound = { battery -> batteryFound = battery },
-            onError = { error -> errorMessage = error }
+        val result = QrCodeData.decode(validQrString)
+
+        // Assert
+        assertNotNull(result)
+        assertEquals("123", result?.entityId)
+        assertEquals(QrCodeEntityType.BATTERY, result?.entityType)
+    }
+
+    @Test
+    fun `QrCodeData decodes format with metadata correctly`() {
+        // Arrange
+        val qrStringWithMetadata = "SKYFUEL::BATTERY::123::1617295200000::1::brand=Test,model=Model"
+
+        // Act
+        val result = QrCodeData.decode(qrStringWithMetadata)
+
+        // Assert
+        assertNotNull(result)
+        assertEquals("123", result?.entityId)
+        assertEquals("Test", result?.metadata?.get("brand"))
+        assertEquals("Model", result?.metadata?.get("model"))
+    }
+
+    @Test
+    fun `QrCodeData returns null for invalid format`() {
+        // Arrange
+        val invalidQrString = "BATTERY_123_SERIALNUMBER"
+
+        // Act
+        val result = QrCodeData.decode(invalidQrString)
+
+        // Assert
+        assertNull(result)
+    }
+
+    @Test
+    fun `QrCodeData forBattery creates correct structure`() {
+        // Arrange & Act
+        val qrData = QrCodeData.forBattery(
+            batteryId = 123L,
+            serialNumber = "SN123",
+            brand = "TestBrand",
+            model = "TestModel"
         )
 
-        // Vérifier que onError est appelé avec le bon message
-        verify(qrCodeViewModel, never()).getBatteryFromQrCode(
-            eq(invalidQrCode),
-            any(),
-            any()
-        )
-        
-        advanceUntilIdle()
+        // Assert
+        assertEquals(QrCodeEntityType.BATTERY, qrData.entityType)
+        assertEquals("123", qrData.entityId)
+        assertEquals("TestBrand", qrData.metadata["brand"])
+        assertEquals("TestModel", qrData.metadata["model"])
+        assertEquals("SN123", qrData.metadata["sn"])
     }
 }

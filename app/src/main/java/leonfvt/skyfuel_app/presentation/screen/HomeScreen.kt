@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.rounded.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -76,13 +77,19 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import android.widget.Toast
 import leonfvt.skyfuel_app.domain.model.Battery
-import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.BatteryAlert
 import leonfvt.skyfuel_app.domain.model.BatteryStatistics
+import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.presentation.component.AlertsSection
 import leonfvt.skyfuel_app.presentation.component.BatteryCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
 import leonfvt.skyfuel_app.presentation.component.FilterSection
 import leonfvt.skyfuel_app.presentation.component.QrScannerDialog
 import leonfvt.skyfuel_app.presentation.component.SearchBar
+import leonfvt.skyfuel_app.presentation.component.SortSelector
+import leonfvt.skyfuel_app.presentation.component.BatteryListShimmer
+import leonfvt.skyfuel_app.presentation.component.DashboardStatsShimmer
+import leonfvt.skyfuel_app.presentation.viewmodel.state.SortOption
 import leonfvt.skyfuel_app.presentation.theme.StatusAvailable
 import leonfvt.skyfuel_app.presentation.theme.StatusDecommissioned
 import leonfvt.skyfuel_app.presentation.theme.StatusInUse
@@ -102,6 +109,8 @@ fun HomeScreen(
     onEvent: (BatteryListEvent) -> Unit,
     onNavigateToAddBattery: () -> Unit,
     onNavigateToBatteryDetail: (Long) -> Unit,
+    onNavigateToSettings: () -> Unit,
+    onNavigateToStatistics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -209,11 +218,10 @@ fun HomeScreen(
                     )
                 },
                 actions = {
-                    // Bouton Scanner QR Code avec animation
+                    // Bouton Scanner QR Code
                     IconButton(
                         onClick = { showQrScanner = true },
                         modifier = Modifier
-                            .padding(end = 16.dp)
                             .size(48.dp)
                             .clip(CircleShape)
                     ) {
@@ -222,6 +230,22 @@ fun HomeScreen(
                             contentDescription = "Scanner un QR code",
                             modifier = Modifier.size(26.dp),
                             tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    
+                    // Bouton Paramètres
+                    IconButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Paramètres",
+                            modifier = Modifier.size(24.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 },
@@ -325,17 +349,26 @@ fun HomeScreen(
                     }
                     else -> {
                         ContentScreen(
-                            batteries = currentState.batteries,
+                            batteries = currentState.sortedBatteries,
+                            alerts = currentState.alerts,
                             searchQuery = currentState.searchQuery,
                             filterStatus = currentState.filterStatus,
+                            sortOption = currentState.sortOption,
                             onSearchQueryChange = { query -> onEvent(BatteryListEvent.Search(query)) },
                             onClearSearch = { onEvent(BatteryListEvent.ClearSearch) },
+                            onSortSelected = { option -> onEvent(BatteryListEvent.Sort(option)) },
                             onFilterSelected = { status -> onEvent(BatteryListEvent.Filter(status)) },
                             onBatteryClick = { battery -> 
                                 onEvent(BatteryListEvent.SelectBattery(battery))
                                 onNavigateToBatteryDetail(battery.id)
                             },
-                            onViewStats = { /* Navigation vers les statistiques complètes */ },
+                            onAlertClick = { alert ->
+                                onNavigateToBatteryDetail(alert.batteryId)
+                            },
+                            onDismissAlert = { alert ->
+                                onEvent(BatteryListEvent.DismissAlert(alert))
+                            },
+                            onViewStats = onNavigateToStatistics,
                             paddingValues = paddingValues,
                             lazyListState = lazyListState
                         )
@@ -360,29 +393,20 @@ fun HomeScreen(
  */
 @Composable
 fun LoadingScreen(paddingValues: PaddingValues) {
-    Box(
+    Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(paddingValues),
-        contentAlignment = Alignment.Center
+            .padding(paddingValues)
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            CircularProgressIndicator(
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(56.dp),
-                strokeWidth = 4.dp
-            )
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            Text(
-                text = "Chargement...",
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
+        // Shimmer pour les stats
+        DashboardStatsShimmer(
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Shimmer pour la liste de batteries
+        BatteryListShimmer(count = 5)
     }
 }
 
@@ -610,12 +634,17 @@ fun EmptyFilterScreen(
 @Composable
 fun ContentScreen(
     batteries: List<Battery>,
+    alerts: List<BatteryAlert>,
     searchQuery: String,
     filterStatus: BatteryStatus?,
+    sortOption: SortOption,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
+    onSortSelected: (SortOption) -> Unit,
     onFilterSelected: (BatteryStatus?) -> Unit,
     onBatteryClick: (Battery) -> Unit,
+    onAlertClick: (BatteryAlert) -> Unit,
+    onDismissAlert: (BatteryAlert) -> Unit,
     onViewStats: () -> Unit,
     paddingValues: PaddingValues,
     lazyListState: androidx.compose.foundation.lazy.LazyListState
@@ -649,18 +678,42 @@ fun ContentScreen(
                         .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
                         .padding(bottom = 8.dp)
                 ) {
-                    // Barre de recherche améliorée
-                    SearchBar(
-                        query = searchQuery,
-                        onQueryChange = onSearchQueryChange,
-                        onSearch = {},
-                        onClear = onClearSearch
-                    )
-                    
+                    // Barre de recherche avec bouton de tri
+                    androidx.compose.foundation.layout.Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SearchBar(
+                            query = searchQuery,
+                            onQueryChange = onSearchQueryChange,
+                            onSearch = {},
+                            onClear = onClearSearch,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        // Sélecteur de tri
+                        SortSelector(
+                            currentSort = sortOption,
+                            onSortSelected = onSortSelected
+                        )
+                    }
+
                     // Filtres
                     FilterSection(
                         currentFilter = filterStatus,
                         onFilterSelected = onFilterSelected
+                    )
+                }
+            }
+            
+            // Section d'alertes (si présentes)
+            if (alerts.isNotEmpty()) {
+                item {
+                    AlertsSection(
+                        alerts = alerts,
+                        onAlertClick = onAlertClick,
+                        onDismissAlert = onDismissAlert,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
                     )
                 }
             }

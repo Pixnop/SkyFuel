@@ -18,6 +18,13 @@ android {
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        // Room schema export for migrations
+        kapt {
+            arguments {
+                arg("room.schemaLocation", "$projectDir/schemas")
+            }
+        }
     }
 
     buildTypes {
@@ -39,6 +46,10 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
+    }
+    testOptions {
+        unitTests.isReturnDefaultValues = true
     }
 }
 
@@ -91,10 +102,20 @@ dependencies {
     
     // Permissions handling
     implementation(libs.accompanist.permissions)
+
+    // Logging
+    implementation(libs.timber)
     
+    // WorkManager for background notifications
+    implementation(libs.androidx.work.runtime)
+    implementation(libs.androidx.hilt.work)
+    kapt(libs.androidx.hilt.compiler)
+
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.mockk)
+    testImplementation(libs.mockito.core)
+    testImplementation(libs.mockito.kotlin)
     
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

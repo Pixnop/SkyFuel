@@ -50,4 +50,10 @@ interface BatteryDao {
     
     @Query("SELECT AVG(cycleCount) FROM batteries")
     suspend fun getAverageCycleCount(): Float
+    
+    @Query("DELETE FROM batteries")
+    suspend fun deleteAllBatteries()
+    
+    @Query("SELECT * FROM batteries WHERE serialNumber = :serialNumber LIMIT 1")
+    suspend fun getBatteryBySerialNumber(serialNumber: String): BatteryEntity?
 }

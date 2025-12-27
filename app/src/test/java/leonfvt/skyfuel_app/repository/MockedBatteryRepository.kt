@@ -225,6 +225,28 @@ class MockedBatteryRepository : BatteryRepository {
         return batteries.sumOf { it.cycleCount }.toFloat() / batteries.size
     }
     
+    // Export/Import
+    override suspend fun getAllHistory(): List<BatteryHistory> {
+        simulateDelay()
+        return batteryHistory.values.flatten()
+    }
+    
+    override suspend fun deleteAllBatteries() {
+        simulateDelay()
+        batteries.clear()
+        batteryHistory.clear()
+        updateBatteriesFlow()
+    }
+    
+    override suspend fun getBatteryBySerialNumber(serialNumber: String): Battery? {
+        simulateDelay()
+        return batteries.find { it.serialNumber == serialNumber }
+    }
+    
+    override suspend fun insertBattery(battery: Battery): Long {
+        return addBattery(battery)
+    }
+    
     // Méthodes spécifiques aux tests
     
     fun addTestBattery(battery: Battery) {

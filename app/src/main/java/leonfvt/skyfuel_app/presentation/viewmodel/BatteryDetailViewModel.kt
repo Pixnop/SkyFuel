@@ -10,9 +10,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.usecase.AddBatteryNoteUseCase
 import leonfvt.skyfuel_app.domain.usecase.DeleteBatteryUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryDetailUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryHistoryUseCase
+import leonfvt.skyfuel_app.domain.usecase.RecordMaintenanceUseCase
 import leonfvt.skyfuel_app.domain.usecase.RecordVoltageReadingUseCase
 import leonfvt.skyfuel_app.domain.usecase.UpdateBatteryStatusUseCase
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailEvent
@@ -32,6 +34,8 @@ class BatteryDetailViewModel @Inject constructor(
     private val getBatteryHistoryUseCase: GetBatteryHistoryUseCase,
     private val updateBatteryStatusUseCase: UpdateBatteryStatusUseCase,
     private val recordVoltageReadingUseCase: RecordVoltageReadingUseCase,
+    private val addBatteryNoteUseCase: AddBatteryNoteUseCase,
+    private val recordMaintenanceUseCase: RecordMaintenanceUseCase,
     private val deleteBatteryUseCase: DeleteBatteryUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
@@ -71,6 +75,9 @@ class BatteryDetailViewModel @Inject constructor(
             }
             is BatteryDetailEvent.AddNote -> {
                 addNote(event.note)
+            }
+            is BatteryDetailEvent.RecordMaintenance -> {
+                recordMaintenance(event.description)
             }
             is BatteryDetailEvent.DeleteBattery -> {
                 deleteBattery()
@@ -165,7 +172,7 @@ class BatteryDetailViewModel @Inject constructor(
                 _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
             },
             onSuccess = {
-                _state.update { it.copy(isActionInProgress = false, voltageInput = "") }
+                _state.update { it.copy(isActionInProgress = false) }
                 // Recharger l'historique pour afficher la nouvelle mesure
                 loadBatteryHistory()
             }
@@ -176,11 +183,42 @@ class BatteryDetailViewModel @Inject constructor(
      * Ajoute une note à la batterie
      */
     private fun addNote(note: String) {
-        // Implémentation à venir dans une prochaine itération
-        // Pour l'instant, on simule le comportement
-        _state.update { it.copy(noteInput = "") }
+        executeUseCase(
+            useCase = { addBatteryNoteUseCase(batteryId, note) },
+            onStart = { _state.update { it.copy(isActionInProgress = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors de l'ajout de note pour la batterie $batteryId")
+                _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
+            },
+            onSuccess = {
+                _state.update { it.copy(isActionInProgress = false) }
+                // Recharger l'historique pour afficher la nouvelle note
+                loadBatteryHistory()
+            }
+        )
     }
-    
+
+    /**
+     * Enregistre une maintenance sur la batterie
+     */
+    private fun recordMaintenance(description: String) {
+        executeUseCase(
+            useCase = { recordMaintenanceUseCase(batteryId, description) },
+            onStart = { _state.update { it.copy(isActionInProgress = true) } },
+            onError = { error ->
+                val errorMessage = ErrorHandler.getUserMessage(error)
+                ErrorHandler.logError(error, "Erreur lors de l'enregistrement de maintenance pour la batterie $batteryId")
+                _state.update { it.copy(isActionInProgress = false, error = errorMessage) }
+            },
+            onSuccess = {
+                _state.update { it.copy(isActionInProgress = false) }
+                // Recharger l'historique pour afficher la maintenance
+                loadBatteryHistory()
+            }
+        )
+    }
+
     /**
      * Supprime la batterie
      */

@@ -8,6 +8,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.QrCodeData
+import leonfvt.skyfuel_app.domain.model.QrCodeData.Companion.toBattery
 import leonfvt.skyfuel_app.domain.model.QrCodeEntityType
 import leonfvt.skyfuel_app.domain.repository.BatteryRepository
 import leonfvt.skyfuel_app.util.ErrorHandler
@@ -147,4 +148,157 @@ class QrCodeService @Inject constructor(
     fun generateNewQrCodeId(battery: Battery): String {
         return "BATTERY_${battery.id}_${battery.serialNumber}_${System.currentTimeMillis()}"
     }
+    
+    // ==================== FONCTIONNALITÉS DE PARTAGE ====================
+    
+    /**
+     * Génère un QR code pour partager une batterie (contient toutes les données)
+     * @param battery Batterie à partager
+     * @param size Taille du QR code en pixels
+     * @return Bitmap contenant le QR code ou null en cas d'erreur
+     */
+    fun generateShareQrCode(battery: Battery, size: Int = 512): Bitmap? {
+        return try {
+            val qrData = QrCodeData.forShareBattery(battery)
+            val qrContent = qrData.encode()
+            QrCodeGenerator.generateQrCodeBitmap(qrContent, size)
+        } catch (e: Exception) {
+            Log.e(TAG, "Erreur lors de la génération du QR code de partage: ${e.message}", e)
+            null
+        }
+    }
+    
+    /**
+     * Partage le QR code contenant toutes les données de la batterie
+     * @param battery Batterie à partager
+     */
+    fun shareFullBatteryQrCode(battery: Battery) {
+        val qrBitmap = generateShareQrCode(battery) ?: return
+        QrCodeUtils.shareQrCode(context, qrBitmap, battery, isShareMode = true)
+    }
+    
+    /**
+     * Extrait les données d'une batterie depuis un QR code de partage
+     * @param qrContent Contenu du QR code scanné
+     * @return Battery si le QR code est valide, null sinon
+     */
+    fun extractBatteryFromShareQrCode(qrContent: String): Battery? {
+        val qrData = decodeQrCode(qrContent) ?: return null
+        return qrData.toBattery()
+    }
+    
+    /**
+     * Vérifie si un QR code est un QR code de partage de batterie
+     * @param qrContent Contenu du QR code scanné
+     * @return true si c'est un QR code de partage
+     */
+    fun isShareQrCode(qrContent: String): Boolean {
+        val qrData = decodeQrCode(qrContent) ?: return false
+        return qrData.entityType == QrCodeEntityType.BATTERY_SHARE
+    }
+    
+    /**
+     * Importe une batterie depuis un QR code de partage
+     * @param qrContent Contenu du QR code scanné
+     * @return Pair<Boolean, String> - (succès, message)
+     */
+    suspend fun importBatteryFromQrCode(qrContent: String): Pair<Boolean, String> {
+        return withContext(Dispatchers.IO) {
+            try {
+                val qrData = decodeQrCode(qrContent)
+                
+                if (qrData == null) {
+                    return@withContext Pair(false, "QR code invalide ou non reconnu")
+                }
+                
+                if (qrData.entityType != QrCodeEntityType.BATTERY_SHARE) {
+                    return@withContext Pair(false, "Ce QR code ne contient pas de données de partage de batterie")
+                }
+                
+                val battery = qrData.toBattery()
+                
+                if (battery == null) {
+                    return@withContext Pair(false, "Impossible d'extraire les données de la batterie")
+                }
+                
+                // Vérifier si une batterie avec le même numéro de série existe déjà
+                val existingBattery = batteryRepository.getBatteryBySerialNumber(battery.serialNumber)
+                
+                if (existingBattery != null) {
+                    return@withContext Pair(false, "Une batterie avec ce numéro de série existe déjà (${battery.serialNumber})")
+                }
+                
+                // Insérer la nouvelle batterie
+                val newId = batteryRepository.insertBattery(battery)
+                
+                if (newId > 0) {
+                    Log.d(TAG, "Batterie importée avec succès: ${battery.brand} ${battery.model} (ID: $newId)")
+                    return@withContext Pair(true, "Batterie importée: ${battery.brand} ${battery.model}")
+                } else {
+                    return@withContext Pair(false, "Erreur lors de l'insertion de la batterie")
+                }
+                
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur lors de l'import de la batterie: ${e.message}", e)
+                return@withContext Pair(false, "Erreur: ${e.message}")
+            }
+        }
+    }
+    
+    /**
+     * Traite un QR code scanné (gère les deux types: référence et partage)
+     */
+    suspend fun processScannedQrCodeEnhanced(qrContent: String): QrScanResult {
+        return withContext(Dispatchers.IO) {
+            try {
+                val qrData = decodeQrCode(qrContent)
+                
+                if (qrData == null) {
+                    return@withContext QrScanResult.Error("QR code invalide ou non reconnu")
+                }
+                
+                when (qrData.entityType) {
+                    QrCodeEntityType.BATTERY -> {
+                        val batteryId = qrData.entityId.toLongOrNull()
+                        if (batteryId != null) {
+                            val battery = batteryRepository.getBatteryById(batteryId)
+                            if (battery != null) {
+                                return@withContext QrScanResult.BatteryFound(battery)
+                            } else {
+                                return@withContext QrScanResult.BatteryNotFound(batteryId)
+                            }
+                        } else {
+                            return@withContext QrScanResult.Error("ID de batterie invalide")
+                        }
+                    }
+                    QrCodeEntityType.BATTERY_SHARE -> {
+                        val battery = qrData.toBattery()
+                        if (battery != null) {
+                            // Vérifier si elle existe déjà
+                            val existing = batteryRepository.getBatteryBySerialNumber(battery.serialNumber)
+                            return@withContext QrScanResult.ShareableBattery(battery, existing != null)
+                        } else {
+                            return@withContext QrScanResult.Error("Impossible d'extraire les données de la batterie")
+                        }
+                    }
+                    else -> {
+                        return@withContext QrScanResult.Error("Type de QR code non supporté")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Erreur lors du traitement du QR code: ${e.message}", e)
+                return@withContext QrScanResult.Error("Erreur: ${e.message}")
+            }
+        }
+    }
+}
+
+/**
+ * Résultat du scan d'un QR code
+ */
+sealed class QrScanResult {
+    data class BatteryFound(val battery: Battery) : QrScanResult()
+    data class BatteryNotFound(val batteryId: Long) : QrScanResult()
+    data class ShareableBattery(val battery: Battery, val alreadyExists: Boolean) : QrScanResult()
+    data class Error(val message: String) : QrScanResult()
 }

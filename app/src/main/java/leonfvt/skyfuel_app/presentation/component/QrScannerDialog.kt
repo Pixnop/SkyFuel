@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
+import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.presentation.viewmodel.QrCodeViewModel
 
 /**
@@ -185,6 +186,199 @@ fun QrScannerDialog(
                 IconButton(
                     onClick = {
                         viewModel.resetScanState()
+                        onDismiss()
+                    },
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Fermer",
+                        tint = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+        }
+    }
+}
+
+
+/**
+ * Boîte de dialogue de scan avec support de l'import de batterie
+ * Détecte automatiquement si le QR code est un partage et propose l'import
+ */
+@Composable
+fun QrScannerWithImportDialog(
+    onDismiss: () -> Unit,
+    onBatteryFound: (Long) -> Unit, // ID de la batterie trouvée
+    onBatteryImported: (String) -> Unit, // Message de succès
+    viewModel: QrCodeViewModel = hiltViewModel()
+) {
+    var hasProcessedQrCode by remember { mutableStateOf(false) }
+    val state by viewModel.state.collectAsState()
+    
+    // Gérer le dialogue d'import
+    if (state.showImportDialog && state.batteryToImport != null) {
+        ImportBatteryConfirmDialog(
+            battery = state.batteryToImport!!,
+            alreadyExists = state.importAlreadyExists,
+            onConfirm = {
+                viewModel.confirmImport(
+                    onSuccess = { message ->
+                        onBatteryImported(message)
+                        onDismiss()
+                    },
+                    onError = { /* L'erreur sera affichée dans l'état */ }
+                )
+            },
+            onDismiss = {
+                viewModel.dismissImportDialog()
+            }
+        )
+    }
+    
+    // Réinitialisation lors de la fermeture
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.resetScanState()
+            viewModel.dismissImportDialog()
+        }
+    }
+    
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            dismissOnBackPress = true,
+            dismissOnClickOutside = false,
+            usePlatformDefaultWidth = false
+        )
+    ) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(600.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                when {
+                    // Erreur
+                    state.errorMessage != null -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                            Text(
+                                text = state.errorMessage ?: "Une erreur est survenue",
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                        }
+                    }
+                    
+                    // Chargement
+                    state.isProcessingQrCode || hasProcessedQrCode -> {
+                        Box(contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(48.dp),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Traitement...",
+                                style = MaterialTheme.typography.bodyLarge,
+                                modifier = Modifier.padding(top = 80.dp)
+                            )
+                        }
+                    }
+                    
+                    // Succès
+                    state.successMessage != null -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                modifier = Modifier.size(48.dp),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = state.successMessage ?: "Succès",
+                                style = MaterialTheme.typography.bodyLarge,
+                                textAlign = TextAlign.Center,
+                                color = Color.Green,
+                                modifier = Modifier.padding(top = 16.dp)
+                            )
+                        }
+                    }
+                    
+                    // Scanner par défaut
+                    else -> {
+                        CameraPermission(
+                            onPermissionGranted = { },
+                            permissionNotAvailableContent = {
+                                Column(
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                    modifier = Modifier.padding(16.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(48.dp),
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = "Permission caméra refusée",
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        textAlign = TextAlign.Center,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.padding(top = 16.dp)
+                                    )
+                                }
+                            }
+                        ) {
+                            QrCodeScanner(
+                                onQrCodeScanned = { qrContent ->
+                                    hasProcessedQrCode = true
+                                    viewModel.processScannedQrCodeEnhanced(
+                                        qrContent = qrContent,
+                                        onBatteryFound = { battery ->
+                                            onBatteryFound(battery.id)
+                                            onDismiss()
+                                        },
+                                        onBatteryNotFound = { _ ->
+                                            // La batterie n'existe pas localement
+                                            hasProcessedQrCode = false
+                                        },
+                                        onShareableBattery = { _, _ ->
+                                            // Le dialogue d'import sera affiché automatiquement
+                                            hasProcessedQrCode = false
+                                        },
+                                        onError = { _ ->
+                                            hasProcessedQrCode = false
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    }
+                }
+                
+                // Bouton fermer
+                IconButton(
+                    onClick = {
+                        viewModel.resetScanState()
+                        viewModel.dismissImportDialog()
                         onDismiss()
                     },
                     modifier = Modifier

@@ -12,6 +12,7 @@ import kotlinx.coroutines.launch
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.QrCodeData
 import leonfvt.skyfuel_app.domain.service.QrCodeService
+import leonfvt.skyfuel_app.domain.service.QrScanResult
 import leonfvt.skyfuel_app.util.UseCaseExtensions.executeUseCase
 import javax.inject.Inject
 
@@ -22,7 +23,11 @@ data class QrCodeState(
     val isProcessingQrCode: Boolean = false,
     val scanResult: String? = null,
     val errorMessage: String? = null,
-    val successMessage: String? = null
+    val successMessage: String? = null,
+    // État pour l'import de batterie
+    val batteryToImport: Battery? = null,
+    val importAlreadyExists: Boolean = false,
+    val showImportDialog: Boolean = false
 )
 
 /**
@@ -141,5 +146,139 @@ class QrCodeViewModel @Inject constructor(
                 }
             }
         )
+    }
+    
+    // ==================== FONCTIONNALITÉS DE PARTAGE ====================
+    
+    /**
+     * Obtient le bitmap du QR code de partage complet pour une batterie
+     * @param battery Batterie pour laquelle générer le QR code
+     * @param size Taille du QR code en pixels
+     * @return Bitmap contenant le QR code
+     */
+    fun getShareBatteryQrCodeBitmap(battery: Battery, size: Int = 512): Bitmap? {
+        return qrCodeService.generateShareQrCode(battery, size)
+    }
+    
+    /**
+     * Partage le QR code complet d'une batterie (avec toutes les données)
+     * @param battery Batterie à partager
+     */
+    fun shareFullBatteryQrCode(battery: Battery) {
+        qrCodeService.shareFullBatteryQrCode(battery)
+    }
+    
+    /**
+     * Traite un QR code scanné avec le nouveau système amélioré
+     * Gère les deux types de QR codes: référence et partage
+     */
+    fun processScannedQrCodeEnhanced(
+        qrContent: String,
+        onBatteryFound: (Battery) -> Unit,
+        onBatteryNotFound: (Long) -> Unit,
+        onShareableBattery: (Battery, Boolean) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        _state.update { it.copy(isProcessingQrCode = true, errorMessage = null) }
+        
+        executeUseCase(
+            useCase = { qrCodeService.processScannedQrCodeEnhanced(qrContent) },
+            onError = { error ->
+                _state.update { it.copy(isProcessingQrCode = false) }
+                onError(error.message ?: "Erreur lors du traitement du QR code")
+            },
+            onSuccess = { result ->
+                _state.update { it.copy(isProcessingQrCode = false) }
+                
+                when (result) {
+                    is QrScanResult.BatteryFound -> onBatteryFound(result.battery)
+                    is QrScanResult.BatteryNotFound -> onBatteryNotFound(result.batteryId)
+                    is QrScanResult.ShareableBattery -> {
+                        _state.update { it.copy(
+                            batteryToImport = result.battery,
+                            importAlreadyExists = result.alreadyExists,
+                            showImportDialog = true
+                        ) }
+                        onShareableBattery(result.battery, result.alreadyExists)
+                    }
+                    is QrScanResult.Error -> onError(result.message)
+                }
+            }
+        )
+    }
+    
+    /**
+     * Importe une batterie depuis un QR code de partage
+     */
+    fun importBatteryFromQrCode(qrContent: String, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        _state.update { it.copy(isProcessingQrCode = true) }
+        
+        executeUseCase(
+            useCase = { qrCodeService.importBatteryFromQrCode(qrContent) },
+            onError = { error ->
+                _state.update { it.copy(isProcessingQrCode = false, showImportDialog = false) }
+                onError(error.message ?: "Erreur lors de l'import")
+            },
+            onSuccess = { (success, message) ->
+                _state.update { it.copy(
+                    isProcessingQrCode = false,
+                    showImportDialog = false,
+                    batteryToImport = null,
+                    successMessage = if (success) message else null,
+                    errorMessage = if (!success) message else null
+                ) }
+                if (success) onSuccess(message) else onError(message)
+            }
+        )
+    }
+    
+    /**
+     * Confirme l'import de la batterie affichée dans le dialogue
+     */
+    fun confirmImport(onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+        val battery = _state.value.batteryToImport ?: return
+        
+        _state.update { it.copy(isProcessingQrCode = true) }
+        
+        viewModelScope.launch {
+            try {
+                // Créer le QR code data pour cette batterie et le ré-encoder
+                val qrData = QrCodeData.forShareBattery(battery)
+                val qrContent = qrData.encode()
+                
+                val (success, message) = qrCodeService.importBatteryFromQrCode(qrContent)
+                
+                _state.update { it.copy(
+                    isProcessingQrCode = false,
+                    showImportDialog = false,
+                    batteryToImport = null,
+                    successMessage = if (success) message else null
+                ) }
+                
+                if (success) onSuccess(message) else onError(message)
+                
+            } catch (e: Exception) {
+                _state.update { it.copy(isProcessingQrCode = false) }
+                onError(e.message ?: "Erreur lors de l'import")
+            }
+        }
+    }
+    
+    /**
+     * Ferme le dialogue d'import
+     */
+    fun dismissImportDialog() {
+        _state.update { it.copy(
+            showImportDialog = false,
+            batteryToImport = null,
+            importAlreadyExists = false
+        ) }
+    }
+    
+    /**
+     * Vérifie si un QR code est un QR de partage
+     */
+    fun isShareQrCode(qrContent: String): Boolean {
+        return qrCodeService.isShareQrCode(qrContent)
     }
 }

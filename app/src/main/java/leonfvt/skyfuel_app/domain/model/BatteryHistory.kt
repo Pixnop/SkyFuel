@@ -1,10 +1,13 @@
 package leonfvt.skyfuel_app.domain.model
 
+import androidx.compose.runtime.Stable
 import java.time.LocalDateTime
 
 /**
  * Modèle de domaine représentant une entrée d'historique de batterie
+ * @Stable indique à Compose que cette classe est immuable pour optimiser les recompositions
  */
+@Stable
 data class BatteryHistory(
     val id: Long = 0,
     val batteryId: Long,

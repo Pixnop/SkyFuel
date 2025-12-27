@@ -195,4 +195,22 @@ class BatteryRepositoryImpl @Inject constructor(
     override suspend fun getAverageCycleCount(): Float {
         return batteryDao.getAverageCycleCount()
     }
+    
+    override suspend fun getAllHistory(): List<BatteryHistory> {
+        return batteryHistoryDao.getAllHistory().map { it.toDomainModel() }
+    }
+    
+    override suspend fun deleteAllBatteries() {
+        batteryHistoryDao.deleteAllHistory()
+        batteryDao.deleteAllBatteries()
+    }
+    
+    override suspend fun getBatteryBySerialNumber(serialNumber: String): Battery? {
+        return batteryDao.getBatteryBySerialNumber(serialNumber)?.toDomainModel()
+    }
+    
+    override suspend fun insertBattery(battery: Battery): Long {
+        val entity = BatteryEntity.fromDomainModel(battery)
+        return batteryDao.insertBattery(entity)
+    }
 }

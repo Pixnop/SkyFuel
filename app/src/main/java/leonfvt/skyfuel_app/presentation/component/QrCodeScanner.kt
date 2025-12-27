@@ -7,26 +7,48 @@ import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -35,6 +57,8 @@ import com.google.zxing.BinaryBitmap
 import com.google.zxing.MultiFormatReader
 import com.google.zxing.PlanarYUVLuminanceSource
 import com.google.zxing.common.HybridBinarizer
+import kotlinx.coroutines.delay
+import leonfvt.skyfuel_app.util.ScanFeedback
 import java.util.concurrent.Executors
 
 private const val TAG = "QrCodeScanner"
@@ -43,17 +67,54 @@ private const val TAG = "QrCodeScanner"
  * Composant pour scanner les QR codes
  * @param onQrCodeScanned Callback appelé lorsqu'un QR code est scanné avec succès
  * @param modifier Modificateur pour personnaliser l'apparence
+ * @param cooldownMs Délai minimum entre deux scans (anti-doublons)
  */
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
 fun QrCodeScanner(
     onQrCodeScanned: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    cooldownMs: Long = 2000L
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val executor = remember { Executors.newSingleThreadExecutor() }
+    
+    // Feedback pour le scan
+    val scanFeedback = remember { ScanFeedback(context) }
+    
+    // État pour le cooldown et l'animation
+    var lastScanTime by remember { mutableLongStateOf(0L) }
+    var showSuccessAnimation by remember { mutableStateOf(false) }
+    var lastScannedCode by remember { mutableStateOf<String?>(null) }
+    
+    // Animation de succès
+    val successScale by animateFloatAsState(
+        targetValue = if (showSuccessAnimation) 1.2f else 1f,
+        animationSpec = spring(dampingRatio = 0.4f, stiffness = 400f),
+        label = "successScale"
+    )
+    val successAlpha by animateFloatAsState(
+        targetValue = if (showSuccessAnimation) 1f else 0f,
+        animationSpec = tween(durationMillis = 300),
+        label = "successAlpha"
+    )
+    
+    // Nettoyage des ressources
+    DisposableEffect(Unit) {
+        onDispose {
+            scanFeedback.release()
+        }
+    }
+    
+    // Reset de l'animation après affichage
+    LaunchedEffect(showSuccessAnimation) {
+        if (showSuccessAnimation) {
+            delay(1500)
+            showSuccessAnimation = false
+        }
+    }
     
     Box(
         modifier = modifier
@@ -76,6 +137,14 @@ fun QrCodeScanner(
                     .build()
                 
                 imageAnalysis.setAnalyzer(executor, { imageProxy ->
+                    val currentTime = System.currentTimeMillis()
+                    
+                    // Vérifier le cooldown
+                    if (currentTime - lastScanTime < cooldownMs) {
+                        imageProxy.close()
+                        return@setAnalyzer
+                    }
+                    
                     // Traitement de l'image pour détecter les QR codes
                     val buffer = imageProxy.planes[0].buffer
                     val data = ByteArray(buffer.remaining())
@@ -92,9 +161,22 @@ fun QrCodeScanner(
                     
                     try {
                         val result = MultiFormatReader().decode(binaryBitmap)
-                        // Succès : on a scanné un QR code
-                        Log.d(TAG, "QR Code scanné: ${result.text}")
-                        onQrCodeScanned(result.text)
+                        val scannedText = result.text
+                        
+                        // Éviter de scanner le même code plusieurs fois de suite
+                        if (scannedText != lastScannedCode || currentTime - lastScanTime > cooldownMs * 2) {
+                            lastScanTime = currentTime
+                            lastScannedCode = scannedText
+                            
+                            // Feedback haptic + sonore
+                            scanFeedback.triggerSuccessFeedback()
+                            
+                            // Afficher l'animation de succès
+                            showSuccessAnimation = true
+                            
+                            Log.d(TAG, "QR Code scanné: $scannedText")
+                            onQrCodeScanned(scannedText)
+                        }
                     } catch (e: Exception) {
                         // Pas de QR code détecté, on continue à scanner
                     } finally {
@@ -102,7 +184,7 @@ fun QrCodeScanner(
                     }
                 })
                 
-                // Nous allons configurer la caméra après le retour de la factory
+                // Configuration de la caméra
                 try {
                     val cameraProvider = cameraProviderFuture.get()
                     cameraProvider.unbindAll()
@@ -120,22 +202,81 @@ fun QrCodeScanner(
             }
         )
         
-        // Overlay de scan
+        // Overlay de scan avec animation
         Box(
             modifier = Modifier
                 .size(250.dp)
+                .scale(successScale)
                 .background(
-                    color = Color.White.copy(alpha = 0.2f),
+                    color = if (showSuccessAnimation) 
+                        Color.Green.copy(alpha = 0.3f) 
+                    else 
+                        Color.White.copy(alpha = 0.2f),
+                    shape = RoundedCornerShape(16.dp)
+                )
+                .border(
+                    width = 3.dp,
+                    color = if (showSuccessAnimation)
+                        Color.Green
+                    else
+                        Color.White.copy(alpha = 0.5f),
                     shape = RoundedCornerShape(16.dp)
                 ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                imageVector = Icons.Default.QrCodeScanner,
-                contentDescription = "Scanner un QR code",
-                modifier = Modifier.size(72.dp),
-                tint = Color.White.copy(alpha = 0.7f)
-            )
+            // Icône qui change selon l'état
+            if (showSuccessAnimation) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = "Scan réussi",
+                    modifier = Modifier
+                        .size(72.dp)
+                        .alpha(successAlpha),
+                    tint = Color.Green
+                )
+            } else {
+                Icon(
+                    imageVector = Icons.Default.QrCodeScanner,
+                    contentDescription = "Scanner un QR code",
+                    modifier = Modifier.size(72.dp),
+                    tint = Color.White.copy(alpha = 0.7f)
+                )
+            }
+        }
+        
+        // Message de succès
+        AnimatedVisibility(
+            visible = showSuccessAnimation,
+            enter = fadeIn() + slideInVertically { -it },
+            exit = fadeOut() + slideOutVertically { -it },
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = 48.dp)
+        ) {
+            Surface(
+                color = Color.Green,
+                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier.padding(horizontal = 16.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = null,
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Text(
+                        text = "QR Code scanné !",
+                        color = Color.White,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
         }
         
         // Instructions

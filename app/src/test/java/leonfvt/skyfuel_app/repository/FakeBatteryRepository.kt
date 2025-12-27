@@ -151,6 +151,25 @@ class FakeBatteryRepository : BatteryRepository {
         return batteries.sumOf { it.cycleCount }.toFloat() / batteries.size
     }
     
+    // Export/Import
+    override suspend fun getAllHistory(): List<BatteryHistory> {
+        return batteryHistory.values.flatten()
+    }
+    
+    override suspend fun deleteAllBatteries() {
+        batteries.clear()
+        batteryHistory.clear()
+        batteriesFlow.value = emptyList()
+    }
+    
+    override suspend fun getBatteryBySerialNumber(serialNumber: String): Battery? {
+        return batteries.find { it.serialNumber == serialNumber }
+    }
+    
+    override suspend fun insertBattery(battery: Battery): Long {
+        return addBattery(battery)
+    }
+    
     // Méthodes supplémentaires pour les tests
     
     /**

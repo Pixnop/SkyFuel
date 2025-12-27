@@ -4,15 +4,16 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import leonfvt.skyfuel_app.domain.model.BatteryType
+import leonfvt.skyfuel_app.domain.model.Result
 import leonfvt.skyfuel_app.domain.usecase.AddBatteryUseCase
 import leonfvt.skyfuel_app.presentation.viewmodel.state.AddBatteryEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.AddBatteryState
+import timber.log.Timber
 import java.time.LocalDate
 import javax.inject.Inject
 
@@ -26,13 +27,9 @@ class AddBatteryViewModel @Inject constructor(
     
     // État interne mutable
     private val _state = MutableStateFlow(AddBatteryState())
-    
+
     // État exposé pour l'UI
-    val state: StateFlow<AddBatteryState> = _state.stateIn(
-        scope = viewModelScope,
-        started = SharingStarted.WhileSubscribed(5000),
-        initialValue = AddBatteryState()
-    )
+    val state: StateFlow<AddBatteryState> = _state.asStateFlow()
     
     // Pour les événements de navigation
     private val _navigationEvent = MutableStateFlow<String?>(null)
@@ -108,12 +105,14 @@ class AddBatteryViewModel @Inject constructor(
     }
     
     /**
-     * Soumet le formulaire pour ajouter une nouvelle batterie
+     * Soumet le formulaire pour ajouter une nouvelle batterie.
+     *
+     * Utilise le pattern Result pour une gestion propre des erreurs.
      */
     private fun submitBattery() {
         val currentState = _state.value
-        
-        // Vérification de validation
+
+        // Vérification de validation côté UI
         if (!currentState.isFormValid) {
             _state.update {
                 it.copy(
@@ -127,40 +126,45 @@ class AddBatteryViewModel @Inject constructor(
             }
             return
         }
-        
+
         // Soumission du formulaire
         _state.update { it.copy(isSubmitting = true, errorMessage = null) }
-        
+
         viewModelScope.launch {
-            try {
-                addBatteryUseCase(
-                    brand = currentState.brand,
-                    model = currentState.model,
-                    serialNumber = currentState.serialNumber,
-                    type = currentState.batteryType,
-                    cells = currentState.cells.toInt(),
-                    capacity = currentState.capacity.toInt(),
-                    purchaseDate = currentState.purchaseDate,
-                    notes = currentState.notes
-                )
-                
-                _state.update {
-                    it.copy(
-                        isSubmitting = false,
-                        isSuccess = true
-                    )
+            Timber.d("AddBatteryViewModel: Submitting battery form")
+
+            val result = addBatteryUseCase(
+                brand = currentState.brand,
+                model = currentState.model,
+                serialNumber = currentState.serialNumber,
+                type = currentState.batteryType,
+                cells = currentState.cells.toInt(),
+                capacity = currentState.capacity.toInt(),
+                purchaseDate = currentState.purchaseDate,
+                notes = currentState.notes
+            )
+
+            result
+                .onSuccess { batteryId ->
+                    Timber.i("AddBatteryViewModel: Battery added with ID $batteryId")
+                    _state.update {
+                        it.copy(
+                            isSubmitting = false,
+                            isSuccess = true
+                        )
+                    }
+                    // Navigation de retour vers l'écran précédent
+                    _navigationEvent.value = "back"
                 }
-                
-                // Navigation de retour vers l'écran précédent
-                _navigationEvent.value = "back"
-            } catch (e: Exception) {
-                _state.update {
-                    it.copy(
-                        isSubmitting = false,
-                        errorMessage = e.message ?: "Erreur lors de l'ajout de la batterie"
-                    )
+                .onError { _, message ->
+                    Timber.w("AddBatteryViewModel: Failed to add battery - $message")
+                    _state.update {
+                        it.copy(
+                            isSubmitting = false,
+                            errorMessage = (result as Result.Error).userMessage
+                        )
+                    }
                 }
-            }
         }
     }
     

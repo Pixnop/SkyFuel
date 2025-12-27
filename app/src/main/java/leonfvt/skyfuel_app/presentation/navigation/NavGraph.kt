@@ -13,6 +13,9 @@ import androidx.navigation.navArgument
 import leonfvt.skyfuel_app.presentation.screen.AddBatteryScreen
 import leonfvt.skyfuel_app.presentation.screen.BatteryDetailScreen
 import leonfvt.skyfuel_app.presentation.screen.HomeScreen
+import leonfvt.skyfuel_app.presentation.screen.SettingsScreen
+import leonfvt.skyfuel_app.presentation.screen.HistoryScreen
+import leonfvt.skyfuel_app.presentation.screen.StatisticsScreen
 import leonfvt.skyfuel_app.presentation.viewmodel.AddBatteryViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.BatteryDetailViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.HomeViewModel
@@ -23,8 +26,13 @@ import leonfvt.skyfuel_app.presentation.viewmodel.HomeViewModel
 sealed class Screen(val route: String) {
     data object Home : Screen("home")
     data object AddBattery : Screen("add_battery")
+    data object Settings : Screen("settings")
+    data object Statistics : Screen("statistics")
     data object BatteryDetail : Screen("battery_detail/{batteryId}") {
         fun createRoute(batteryId: Long): String = "battery_detail/$batteryId"
+    }
+    data object History : Screen("history/{batteryId}") {
+        fun createRoute(batteryId: Long): String = "history/$batteryId"
     }
 }
 
@@ -50,6 +58,30 @@ fun NavGraph(navController: NavHostController) {
                 },
                 onNavigateToBatteryDetail = { batteryId ->
                     navController.navigate(Screen.BatteryDetail.createRoute(batteryId))
+                },
+                onNavigateToSettings = {
+                    navController.navigate(Screen.Settings.route)
+                },
+                onNavigateToStatistics = {
+                    navController.navigate(Screen.Statistics.route)
+                }
+            )
+        }
+        
+        // Écran des paramètres
+        composable(route = Screen.Settings.route) {
+            SettingsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        // Écran des statistiques
+        composable(route = Screen.Statistics.route) {
+            StatisticsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -101,7 +133,29 @@ fun NavGraph(navController: NavHostController) {
             
             BatteryDetailScreen(
                 state = state,
-                onEvent = viewModel::onEvent
+                onEvent = viewModel::onEvent,
+                onNavigateToHistory = { batteryId ->
+                    navController.navigate(Screen.History.createRoute(batteryId))
+                }
+            )
+        }
+        
+        // Écran d'historique d'une batterie
+        composable(
+            route = Screen.History.route,
+            arguments = listOf(
+                navArgument("batteryId") {
+                    type = NavType.LongType
+                }
+            )
+        ) { backStackEntry ->
+            val batteryId = backStackEntry.arguments?.getLong("batteryId") ?: 0L
+            
+            HistoryScreen(
+                batteryId = batteryId,
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
             )
         }
     }

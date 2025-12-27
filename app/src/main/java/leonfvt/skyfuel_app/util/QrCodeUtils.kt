@@ -28,15 +28,17 @@ object QrCodeUtils {
      * @param context Contexte Android
      * @param bitmap Image du QR code à partager
      * @param battery Batterie associée au QR code
+     * @param isShareMode Si true, indique que c'est un QR de partage complet (toutes les données)
      */
-    fun shareQrCode(context: Context, bitmap: Bitmap, battery: Battery) {
+    fun shareQrCode(context: Context, bitmap: Bitmap, battery: Battery, isShareMode: Boolean = false) {
         try {
             // Créer un fichier temporaire pour le QR code
             val cachePath = File(context.cacheDir, "qr_codes")
             cachePath.mkdirs()
             
             // Nom de fichier avec marque et numéro de série
-            val fileName = "qrcode_${battery.brand}_${battery.serialNumber}.png"
+            val prefix = if (isShareMode) "share_" else "qrcode_"
+            val fileName = "${prefix}${battery.brand}_${battery.serialNumber}.png"
                 .replace(" ", "_")
                 .replace("/", "_")
             val file = File(cachePath, fileName)
@@ -53,15 +55,27 @@ object QrCodeUtils {
                 file
             )
             
+            // Message de partage adapté au mode
+            val shareText = if (isShareMode) {
+                "Partage de batterie SkyFuel: ${battery.brand} ${battery.model}\n" +
+                "S/N: ${battery.serialNumber}\n" +
+                "Scannez ce QR code dans SkyFuel pour importer cette batterie."
+            } else {
+                "QR Code pour la batterie ${battery.brand} ${battery.model} (S/N: ${battery.serialNumber})"
+            }
+            
+            val subject = if (isShareMode) {
+                "Partage SkyFuel - ${battery.brand} ${battery.model}"
+            } else {
+                "QR Code - ${battery.brand} ${battery.model}"
+            }
+            
             // Créer l'intent de partage
             val intent = Intent(Intent.ACTION_SEND).apply {
                 type = "image/png"
                 putExtra(Intent.EXTRA_STREAM, fileUri)
-                putExtra(Intent.EXTRA_SUBJECT, "QR Code - ${battery.brand} ${battery.model}")
-                putExtra(
-                    Intent.EXTRA_TEXT,
-                    "QR Code pour la batterie ${battery.brand} ${battery.model} (S/N: ${battery.serialNumber})"
-                )
+                putExtra(Intent.EXTRA_SUBJECT, subject)
+                putExtra(Intent.EXTRA_TEXT, shareText)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
             
