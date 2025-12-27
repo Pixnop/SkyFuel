@@ -17,7 +17,7 @@ android {
         versionCode = 1
         versionName = "1.0"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        testInstrumentationRunner = "leonfvt.skyfuel_app.HiltTestRunner"
 
         // Room schema export for migrations
         kapt {
@@ -106,6 +106,9 @@ dependencies {
     // Logging
     implementation(libs.timber)
     
+    // DataStore for preferences
+    implementation(libs.androidx.datastore.preferences)
+    
     // WorkManager for background notifications
     implementation(libs.androidx.work.runtime)
     implementation(libs.androidx.hilt.work)
@@ -121,6 +124,10 @@ dependencies {
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.ui.test.junit4)
+    
+    // Hilt testing
+    androidTestImplementation(libs.hilt.android.testing)
+    kaptAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

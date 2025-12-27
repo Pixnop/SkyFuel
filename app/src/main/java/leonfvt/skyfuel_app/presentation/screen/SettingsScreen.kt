@@ -24,8 +24,16 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.BrightnessMedium
+import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Vibration
+import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -61,17 +69,23 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.hilt.navigation.compose.hiltViewModel
+import leonfvt.skyfuel_app.data.preferences.ThemeMode
 import leonfvt.skyfuel_app.domain.service.ExportFormat
+import leonfvt.skyfuel_app.presentation.component.NotificationSettingRow
+import leonfvt.skyfuel_app.presentation.component.NotificationPermissionCard
 import leonfvt.skyfuel_app.presentation.viewmodel.SettingsViewModel
+import leonfvt.skyfuel_app.presentation.viewmodel.ThemeViewModel
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
-    viewModel: SettingsViewModel = hiltViewModel()
+    viewModel: SettingsViewModel = hiltViewModel(),
+    themeViewModel: ThemeViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsState()
+    val themeState by themeViewModel.themeState.collectAsState()
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     
@@ -151,6 +165,189 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // Carte de permission notifications (s'affiche si non accordée)
+            NotificationPermissionCard(
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            // Section Notifications
+            SettingsSection(title = "Notifications") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                        NotificationSettingRow(
+                            title = "Alertes batteries",
+                            description = "Notifications pour batteries faibles ou en mauvais état",
+                            enabled = state.alertsEnabled,
+                            onEnabledChange = { viewModel.setAlertsEnabled(it) }
+                        )
+                        
+                        HorizontalDivider()
+                        
+                        NotificationSettingRow(
+                            title = "Rappels de charge",
+                            description = "Rappels programmés pour charger vos batteries",
+                            enabled = state.chargeRemindersEnabled,
+                            onEnabledChange = { viewModel.setChargeRemindersEnabled(it) }
+                        )
+                        
+                        HorizontalDivider()
+                        
+                        NotificationSettingRow(
+                            title = "Rappels de maintenance",
+                            description = "Notifications pour l'entretien périodique",
+                            enabled = state.maintenanceRemindersEnabled,
+                            onEnabledChange = { viewModel.setMaintenanceRemindersEnabled(it) }
+                        )
+                        
+                        HorizontalDivider()
+                        
+                        NotificationSettingRow(
+                            title = "Alertes niveau bas",
+                            description = "Avertissements pour batteries bientôt déchargées",
+                            enabled = state.lowBatteryWarningsEnabled,
+                            onEnabledChange = { viewModel.setLowBatteryWarningsEnabled(it) }
+                        )
+                        
+                        HorizontalDivider()
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Vibration,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text("Vibration", style = MaterialTheme.typography.bodyLarge)
+                            }
+                            Switch(
+                                checked = state.vibrationEnabled,
+                                onCheckedChange = { viewModel.setVibrationEnabled(it) }
+                            )
+                        }
+                        
+                        HorizontalDivider()
+                        
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.VolumeUp,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text("Son", style = MaterialTheme.typography.bodyLarge)
+                            }
+                            Switch(
+                                checked = state.soundEnabled,
+                                onCheckedChange = { viewModel.setSoundEnabled(it) }
+                            )
+                        }
+                    }
+                }
+            }
+            
+            // Section Thème
+            SettingsSection(title = "Apparence") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Text(
+                            text = "Mode du thème",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(bottom = 12.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            ThemeModeButton(
+                                icon = Icons.Default.BrightnessMedium,
+                                label = "Système",
+                                selected = themeState.themeMode == ThemeMode.SYSTEM,
+                                onClick = { themeViewModel.setThemeMode(ThemeMode.SYSTEM) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ThemeModeButton(
+                                icon = Icons.Default.LightMode,
+                                label = "Clair",
+                                selected = themeState.themeMode == ThemeMode.LIGHT,
+                                onClick = { themeViewModel.setThemeMode(ThemeMode.LIGHT) },
+                                modifier = Modifier.weight(1f)
+                            )
+                            ThemeModeButton(
+                                icon = Icons.Default.DarkMode,
+                                label = "Sombre",
+                                selected = themeState.themeMode == ThemeMode.DARK,
+                                onClick = { themeViewModel.setThemeMode(ThemeMode.DARK) },
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Palette,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Text(
+                                        text = "Couleurs dynamiques",
+                                        style = MaterialTheme.typography.bodyLarge
+                                    )
+                                }
+                                Text(
+                                    text = "Utilise les couleurs du fond d'écran (Android 12+)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                                )
+                            }
+                            Switch(
+                                checked = themeState.dynamicColorsEnabled,
+                                onCheckedChange = { themeViewModel.setDynamicColorsEnabled(it) }
+                            )
+                        }
+                    }
+                }
+            }
+            
             // Section Export/Import
             SettingsSection(title = "Données") {
                 SettingsCard(
@@ -430,6 +627,51 @@ private fun FormatButton(
     } else {
         OutlinedButton(onClick = onClick) {
             Text(label)
+        }
+    }
+}
+
+@Composable
+private fun ThemeModeButton(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val backgroundColor = if (selected) {
+        MaterialTheme.colorScheme.primaryContainer
+    } else {
+        MaterialTheme.colorScheme.surface
+    }
+    val contentColor = if (selected) {
+        MaterialTheme.colorScheme.onPrimaryContainer
+    } else {
+        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+    }
+    
+    Card(
+        onClick = onClick,
+        modifier = modifier,
+        colors = CardDefaults.cardColors(containerColor = backgroundColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = label,
+                tint = contentColor
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = contentColor
+            )
         }
     }
 }

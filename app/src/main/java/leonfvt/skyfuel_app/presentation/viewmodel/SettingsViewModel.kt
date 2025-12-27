@@ -13,6 +13,7 @@ import leonfvt.skyfuel_app.domain.usecase.ExportDataUseCase
 import leonfvt.skyfuel_app.domain.usecase.ExportResult
 import leonfvt.skyfuel_app.domain.usecase.ImportDataUseCase
 import leonfvt.skyfuel_app.domain.usecase.ImportDataResult
+import leonfvt.skyfuel_app.data.preferences.UserPreferencesRepository
 import javax.inject.Inject
 
 data class SettingsState(
@@ -20,7 +21,14 @@ data class SettingsState(
     val isImporting: Boolean = false,
     val exportSuccess: ExportSuccessData? = null,
     val importSuccess: ImportSuccessData? = null,
-    val error: String? = null
+    val error: String? = null,
+    // Notification preferences
+    val alertsEnabled: Boolean = true,
+    val chargeRemindersEnabled: Boolean = true,
+    val maintenanceRemindersEnabled: Boolean = true,
+    val lowBatteryWarningsEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = true,
+    val soundEnabled: Boolean = true
 )
 
 data class ExportSuccessData(
@@ -38,11 +46,30 @@ data class ImportSuccessData(
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val exportDataUseCase: ExportDataUseCase,
-    private val importDataUseCase: ImportDataUseCase
+    private val importDataUseCase: ImportDataUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(SettingsState())
     val state: StateFlow<SettingsState> = _state.asStateFlow()
+    
+    init {
+        // Observer les préférences de notification
+        viewModelScope.launch {
+            userPreferencesRepository.notificationPreferences.collect { prefs ->
+                _state.update { state ->
+                    state.copy(
+                        alertsEnabled = prefs.alertsEnabled,
+                        chargeRemindersEnabled = prefs.chargeRemindersEnabled,
+                        maintenanceRemindersEnabled = prefs.maintenanceRemindersEnabled,
+                        lowBatteryWarningsEnabled = prefs.lowBatteryWarningsEnabled,
+                        vibrationEnabled = prefs.vibrationEnabled,
+                        soundEnabled = prefs.soundEnabled
+                    )
+                }
+            }
+        }
+    }
     
     fun exportData(format: ExportFormat, includeHistory: Boolean = true) {
         viewModelScope.launch {
@@ -93,6 +120,44 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             }
+        }
+    }
+    
+    // ============ Méthodes pour les notifications ============
+    
+    fun setAlertsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setAlertsEnabled(enabled)
+        }
+    }
+    
+    fun setChargeRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setChargeRemindersEnabled(enabled)
+        }
+    }
+    
+    fun setMaintenanceRemindersEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setMaintenanceRemindersEnabled(enabled)
+        }
+    }
+    
+    fun setLowBatteryWarningsEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setLowBatteryWarningsEnabled(enabled)
+        }
+    }
+    
+    fun setVibrationEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setVibrationEnabled(enabled)
+        }
+    }
+    
+    fun setSoundEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            userPreferencesRepository.setSoundEnabled(enabled)
         }
     }
     

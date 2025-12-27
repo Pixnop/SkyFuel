@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">SkyFuel-app</string>
+    <string name="refresh">Rafraîchir</string>
+    <string name="widget_description">Affiche un résumé de l\'état de vos batteries de drones</string>
 </resources>
