@@ -5,6 +5,7 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.jakewharton.threetenabp.AndroidThreeTen
 import dagger.hilt.android.HiltAndroidApp
+import leonfvt.skyfuel_app.data.sync.SyncManager
 import leonfvt.skyfuel_app.util.NotificationHelper
 import leonfvt.skyfuel_app.worker.BatteryAlertWorker
 import leonfvt.skyfuel_app.worker.ReminderWorker
@@ -23,12 +24,24 @@ class SkyFuelApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
 
+    @Inject
+    lateinit var syncManager: SyncManager
+
     override fun onCreate() {
         super.onCreate()
         initializeTimber()
         initializeThreeTenABP()
         initializeNotifications()
         scheduleBatteryAlertWorker()
+        initializeSyncManager()
+    }
+
+    /**
+     * Initialise le gestionnaire de synchronisation
+     */
+    private fun initializeSyncManager() {
+        syncManager.initializeOnAppStart()
+        Timber.d("SyncManager initialized")
     }
 
     /**
