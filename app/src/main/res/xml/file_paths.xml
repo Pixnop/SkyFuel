@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<paths>
-    <cache-path name="qr_shared" path="qr_codes/"/>
-    <cache-path name="exports" path="."/>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path
+        name="battery_photos"
+        path="battery_photos/" />
 </paths>

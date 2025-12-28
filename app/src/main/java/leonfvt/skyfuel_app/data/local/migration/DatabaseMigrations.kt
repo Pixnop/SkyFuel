@@ -42,6 +42,52 @@ object DatabaseMigrations {
             database.execSQL("CREATE INDEX IF NOT EXISTS index_charge_reminders_batteryId ON charge_reminders(batteryId)")
         }
     }
+
+    /**
+     * Migration de la version 2 vers la version 3.
+     * Ajoute les tables pour les catégories et tags de batteries.
+     */
+    val MIGRATION_2_3 = object : Migration(2, 3) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Table des catégories
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS categories (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    color INTEGER NOT NULL,
+                    icon TEXT NOT NULL,
+                    description TEXT NOT NULL,
+                    createdAt TEXT NOT NULL
+                )
+            """.trimIndent())
+            
+            // Table de liaison many-to-many batteries <-> catégories
+            database.execSQL("""
+                CREATE TABLE IF NOT EXISTS battery_category_cross_ref (
+                    batteryId INTEGER NOT NULL,
+                    categoryId INTEGER NOT NULL,
+                    PRIMARY KEY (batteryId, categoryId),
+                    FOREIGN KEY (batteryId) REFERENCES batteries(id) ON DELETE CASCADE,
+                    FOREIGN KEY (categoryId) REFERENCES categories(id) ON DELETE CASCADE
+                )
+            """.trimIndent())
+            
+            // Index pour performances
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_batteryId ON battery_category_cross_ref(batteryId)")
+            database.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_categoryId ON battery_category_cross_ref(categoryId)")
+        }
+    }
+    
+    /**
+     * Migration de la version 3 vers la version 4.
+     * Ajoute le champ photoPath pour les photos de batteries.
+     */
+    val MIGRATION_3_4 = object : Migration(3, 4) {
+        override fun migrate(database: SupportSQLiteDatabase) {
+            // Ajoute la colonne photoPath à la table batteries
+            database.execSQL("ALTER TABLE batteries ADD COLUMN photoPath TEXT DEFAULT NULL")
+        }
+    }
     
     /**
      * Liste de toutes les migrations disponibles.
@@ -49,5 +95,7 @@ object DatabaseMigrations {
      */
     val ALL_MIGRATIONS: Array<Migration> = arrayOf(
         MIGRATION_1_2,
+        MIGRATION_2_3,
+        MIGRATION_3_4,
     )
 }

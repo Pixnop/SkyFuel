@@ -24,6 +24,10 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.SyncDisabled
 import androidx.compose.material.icons.filled.BrightnessMedium
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Info
@@ -81,6 +85,7 @@ import java.io.File
 @Composable
 fun SettingsScreen(
     onNavigateBack: () -> Unit,
+    onNavigateToCategories: () -> Unit = {},
     viewModel: SettingsViewModel = hiltViewModel(),
     themeViewModel: ThemeViewModel = hiltViewModel()
 ) {
@@ -132,11 +137,48 @@ fun SettingsScreen(
         }
     }
     
+    // Gestion de l'export PDF réussi
+    LaunchedEffect(state.pdfExportSuccess) {
+        state.pdfExportSuccess?.let { pdfFile ->
+            try {
+                val uri = androidx.core.content.FileProvider.getUriForFile(
+                    context,
+                    "${context.packageName}.fileprovider",
+                    pdfFile
+                )
+                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                    type = "application/pdf"
+                    putExtra(Intent.EXTRA_STREAM, uri)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                context.startActivity(Intent.createChooser(shareIntent, "Partager le rapport PDF"))
+            } catch (e: Exception) {
+                Toast.makeText(context, "Erreur lors du partage du PDF", Toast.LENGTH_LONG).show()
+            }
+            viewModel.clearPdfExportSuccess()
+        }
+    }
+    
     // Gestion des erreurs
     LaunchedEffect(state.error) {
         state.error?.let { error ->
             Toast.makeText(context, error, Toast.LENGTH_LONG).show()
             viewModel.clearError()
+        }
+    }
+    
+    // Gestion des résultats de synchronisation
+    LaunchedEffect(state.syncResult) {
+        state.syncResult?.let { result ->
+            Toast.makeText(context, result, Toast.LENGTH_SHORT).show()
+            viewModel.clearSyncResult()
+        }
+    }
+    
+    // Gestion des erreurs de synchronisation
+    LaunchedEffect(state.syncError) {
+        state.syncError?.let { error ->
+            Toast.makeText(context, "Erreur sync: $error", Toast.LENGTH_LONG).show()
         }
     }
     
@@ -348,6 +390,16 @@ fun SettingsScreen(
                 }
             }
             
+            // Section Organisation
+            SettingsSection(title = "Organisation") {
+                SettingsCard(
+                    icon = Icons.Default.Folder,
+                    title = "Catégories",
+                    description = "Gérer les catégories de batteries",
+                    onClick = onNavigateToCategories
+                )
+            }
+            
             // Section Export/Import
             SettingsSection(title = "Données") {
                 SettingsCard(
@@ -367,6 +419,191 @@ fun SettingsScreen(
                     onClick = { showImportDialog = true },
                     isLoading = state.isImporting
                 )
+                
+                Spacer(modifier = Modifier.height(8.dp))
+                
+                SettingsCard(
+                    icon = Icons.Default.PictureAsPdf,
+                    title = "Exporter en PDF",
+                    description = "Générer un rapport PDF de toutes les batteries",
+                    onClick = { viewModel.exportToPdf(context) },
+                    isLoading = state.isExportingPdf
+                )
+            }
+            
+            // Section Synchronisation
+            SettingsSection(title = "Synchronisation Cloud") {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // En-tête avec statut
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = if (state.isAuthenticated) Icons.Default.Sync else Icons.Default.SyncDisabled,
+                                contentDescription = null,
+                                tint = if (state.isAuthenticated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Synchronisation Firebase",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Text(
+                                    text = if (state.isAuthenticated) {
+                                        state.userEmail ?: "Connecté (anonyme)"
+                                    } else {
+                                        "Non connecté"
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (state.isAuthenticated) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        // Boutons de connexion/déconnexion
+                        if (state.isAuthenticated) {
+                            // Toggle sync enabled
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Synchronisation activée",
+                                    style = MaterialTheme.typography.bodyLarge
+                                )
+                                Switch(
+                                    checked = state.syncEnabled,
+                                    onCheckedChange = { viewModel.toggleSyncEnabled(it) }
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            // Dernière synchronisation
+                            val lastSync = state.lastSyncTime
+                            if (lastSync != null) {
+                                val lastSyncDate = java.text.SimpleDateFormat(
+                                    "dd/MM/yyyy HH:mm",
+                                    java.util.Locale.getDefault()
+                                ).format(java.util.Date(lastSync))
+                                Text(
+                                    text = "Dernière sync: $lastSyncDate",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                            }
+                            
+                            // Bouton synchroniser maintenant
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Button(
+                                    onClick = { viewModel.syncNow() },
+                                    enabled = !state.isSyncing && state.syncEnabled,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    if (state.isSyncing) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(18.dp),
+                                            color = MaterialTheme.colorScheme.onPrimary,
+                                            strokeWidth = 2.dp
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Default.Sync,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (state.isSyncing) "Synchronisation..." else "Synchroniser")
+                                }
+                                
+                                OutlinedButton(
+                                    onClick = { viewModel.signOut() },
+                                    colors = ButtonDefaults.outlinedButtonColors(
+                                        contentColor = MaterialTheme.colorScheme.error
+                                    )
+                                ) {
+                                    Text("Déconnexion")
+                                }
+                            }
+                        } else {
+                            // Bouton de connexion
+                            Button(
+                                onClick = { viewModel.signInAnonymously() },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Sync,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Se connecter (anonyme)")
+                            }
+                            
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            Text(
+                                text = "Connectez-vous pour sauvegarder vos batteries dans le cloud.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        
+                        // Afficher les erreurs
+                        val errorMessage = state.syncError
+                        if (errorMessage != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Card(
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Info,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.error
+                                    )
+                                    Text(
+                                        text = errorMessage,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(
+                                        onClick = { viewModel.clearSyncError() },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Fermer",
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
             // Section À propos

@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kapt)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.google.services)
 }
 
 android {
@@ -29,11 +30,15 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            isMinifyEnabled = false
         }
     }
     compileOptions {
@@ -108,6 +113,16 @@ dependencies {
     
     // DataStore for preferences
     implementation(libs.androidx.datastore.preferences)
+    
+    // Image loading (Coil)
+    implementation(libs.coil.compose)
+    
+    // Firebase - versions explicites (BOM non utilisé car problème de résolution)
+    implementation("com.google.firebase:firebase-auth-ktx:23.0.0")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.0.0")
+    
+    // Guava for ListenableFuture (required by CameraX)
+    implementation("com.google.guava:guava:32.1.3-android")
     
     // WorkManager for background notifications
     implementation(libs.androidx.work.runtime)

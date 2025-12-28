@@ -34,7 +34,10 @@ data class Battery(
     val lastChargeDate: LocalDate? = null,
     
     // Identifiant unique pour QR code (utilise l'ID par défaut)
-    val qrCodeId: String = ""
+    val qrCodeId: String = "",
+    
+    // Chemin vers la photo de la batterie (null si aucune photo)
+    val photoPath: String? = null
 ) {
     /**
      * Calcule l'âge de la batterie en jours

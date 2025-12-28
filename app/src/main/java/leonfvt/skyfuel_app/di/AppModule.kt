@@ -10,6 +10,7 @@ import leonfvt.skyfuel_app.BuildConfig
 import leonfvt.skyfuel_app.data.local.AppDatabase
 import leonfvt.skyfuel_app.data.local.dao.BatteryDao
 import leonfvt.skyfuel_app.data.local.dao.BatteryHistoryDao
+import leonfvt.skyfuel_app.data.local.dao.CategoryDao
 import leonfvt.skyfuel_app.data.local.dao.ChargeReminderDao
 import leonfvt.skyfuel_app.data.repository.BatteryRepositoryImpl
 import leonfvt.skyfuel_app.domain.repository.BatteryRepository
@@ -62,6 +63,15 @@ object AppModule {
     @Singleton
     fun provideChargeReminderDao(appDatabase: AppDatabase): ChargeReminderDao {
         return appDatabase.chargeReminderDao()
+    }
+    
+    /**
+     * Fournit le DAO pour les catégories
+     */
+    @Provides
+    @Singleton
+    fun provideCategoryDao(appDatabase: AppDatabase): CategoryDao {
+        return appDatabase.categoryDao()
     }
     
     /**

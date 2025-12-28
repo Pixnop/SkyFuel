@@ -10,24 +10,30 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import leonfvt.skyfuel_app.data.preferences.UserPreferencesRepository
 import leonfvt.skyfuel_app.presentation.screen.AddBatteryScreen
 import leonfvt.skyfuel_app.presentation.screen.BatteryDetailScreen
+import leonfvt.skyfuel_app.presentation.screen.CategoryScreen
 import leonfvt.skyfuel_app.presentation.screen.HomeScreen
+import leonfvt.skyfuel_app.presentation.screen.OnboardingScreen
 import leonfvt.skyfuel_app.presentation.screen.SettingsScreen
 import leonfvt.skyfuel_app.presentation.screen.HistoryScreen
 import leonfvt.skyfuel_app.presentation.screen.StatisticsScreen
 import leonfvt.skyfuel_app.presentation.viewmodel.AddBatteryViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.BatteryDetailViewModel
+import leonfvt.skyfuel_app.presentation.viewmodel.CategoryViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.HomeViewModel
 
 /**
  * Routes de navigation principales de l'application
  */
 sealed class Screen(val route: String) {
+    data object Onboarding : Screen("onboarding")
     data object Home : Screen("home")
     data object AddBattery : Screen("add_battery")
     data object Settings : Screen("settings")
     data object Statistics : Screen("statistics")
+    data object Categories : Screen("categories")
     data object BatteryDetail : Screen("battery_detail/{batteryId}") {
         fun createRoute(batteryId: Long): String = "battery_detail/$batteryId"
     }
@@ -40,11 +46,27 @@ sealed class Screen(val route: String) {
  * Configuration du graphe de navigation principal
  */
 @Composable
-fun NavGraph(navController: NavHostController) {
+fun NavGraph(
+    navController: NavHostController,
+    startDestination: String = Screen.Home.route,
+    onOnboardingComplete: () -> Unit = {}
+) {
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route
+        startDestination = startDestination
     ) {
+        // Écran d'onboarding
+        composable(route = Screen.Onboarding.route) {
+            OnboardingScreen(
+                onComplete = {
+                    onOnboardingComplete()
+                    navController.navigate(Screen.Home.route) {
+                        popUpTo(Screen.Onboarding.route) { inclusive = true }
+                    }
+                }
+            )
+        }
+        
         // Écran d'accueil
         composable(route = Screen.Home.route) {
             val viewModel: HomeViewModel = hiltViewModel()
@@ -73,6 +95,9 @@ fun NavGraph(navController: NavHostController) {
             SettingsScreen(
                 onNavigateBack = {
                     navController.popBackStack()
+                },
+                onNavigateToCategories = {
+                    navController.navigate(Screen.Categories.route)
                 }
             )
         }
@@ -80,6 +105,20 @@ fun NavGraph(navController: NavHostController) {
         // Écran des statistiques
         composable(route = Screen.Statistics.route) {
             StatisticsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
+                }
+            )
+        }
+        
+        // Écran des catégories
+        composable(route = Screen.Categories.route) {
+            val viewModel: CategoryViewModel = hiltViewModel()
+            val state by viewModel.state.collectAsState()
+            
+            CategoryScreen(
+                state = state,
+                onEvent = viewModel::onEvent,
                 onNavigateBack = {
                     navController.popBackStack()
                 }

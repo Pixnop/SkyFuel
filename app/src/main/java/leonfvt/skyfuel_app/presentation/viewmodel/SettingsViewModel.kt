@@ -13,14 +13,23 @@ import leonfvt.skyfuel_app.domain.usecase.ExportDataUseCase
 import leonfvt.skyfuel_app.domain.usecase.ExportResult
 import leonfvt.skyfuel_app.domain.usecase.ImportDataUseCase
 import leonfvt.skyfuel_app.domain.usecase.ImportDataResult
+import leonfvt.skyfuel_app.domain.usecase.GetAllBatteriesUseCase
 import leonfvt.skyfuel_app.data.preferences.UserPreferencesRepository
+import leonfvt.skyfuel_app.data.sync.FirebaseSyncService
+import leonfvt.skyfuel_app.data.sync.SyncResult
+import leonfvt.skyfuel_app.util.PdfExporter
+import android.content.Context
+import kotlinx.coroutines.flow.first
+import java.io.File
 import javax.inject.Inject
 
 data class SettingsState(
     val isExporting: Boolean = false,
     val isImporting: Boolean = false,
+    val isExportingPdf: Boolean = false,
     val exportSuccess: ExportSuccessData? = null,
     val importSuccess: ImportSuccessData? = null,
+    val pdfExportSuccess: File? = null,
     val error: String? = null,
     // Notification preferences
     val alertsEnabled: Boolean = true,
@@ -28,7 +37,15 @@ data class SettingsState(
     val maintenanceRemindersEnabled: Boolean = true,
     val lowBatteryWarningsEnabled: Boolean = true,
     val vibrationEnabled: Boolean = true,
-    val soundEnabled: Boolean = true
+    val soundEnabled: Boolean = true,
+    // Firebase sync state
+    val syncEnabled: Boolean = false,
+    val isAuthenticated: Boolean = false,
+    val isSyncing: Boolean = false,
+    val lastSyncTime: Long? = null,
+    val syncError: String? = null,
+    val userEmail: String? = null,
+    val syncResult: String? = null
 )
 
 data class ExportSuccessData(
@@ -47,7 +64,10 @@ data class ImportSuccessData(
 class SettingsViewModel @Inject constructor(
     private val exportDataUseCase: ExportDataUseCase,
     private val importDataUseCase: ImportDataUseCase,
-    private val userPreferencesRepository: UserPreferencesRepository
+    private val getAllBatteriesUseCase: GetAllBatteriesUseCase,
+    private val userPreferencesRepository: UserPreferencesRepository,
+    private val pdfExporter: PdfExporter,
+    private val firebaseSyncService: FirebaseSyncService
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(SettingsState())
@@ -65,6 +85,22 @@ class SettingsViewModel @Inject constructor(
                         lowBatteryWarningsEnabled = prefs.lowBatteryWarningsEnabled,
                         vibrationEnabled = prefs.vibrationEnabled,
                         soundEnabled = prefs.soundEnabled
+                    )
+                }
+            }
+        }
+        
+        // Observer l'état de synchronisation Firebase
+        viewModelScope.launch {
+            firebaseSyncService.syncState.collect { syncState ->
+                _state.update { state ->
+                    state.copy(
+                        syncEnabled = syncState.isEnabled,
+                        isAuthenticated = syncState.isAuthenticated,
+                        isSyncing = syncState.isSyncing,
+                        lastSyncTime = syncState.lastSyncTime,
+                        syncError = syncState.error,
+                        userEmail = syncState.userEmail
                     )
                 }
             }
@@ -161,12 +197,90 @@ class SettingsViewModel @Inject constructor(
         }
     }
     
+    fun exportToPdf(context: Context) {
+        viewModelScope.launch {
+            _state.update { it.copy(isExportingPdf = true, error = null, pdfExportSuccess = null) }
+            
+            try {
+                val batteries = getAllBatteriesUseCase().first()
+                val pdfFile = pdfExporter.exportBatteriesToPdf(context, batteries)
+                
+                if (pdfFile != null) {
+                    _state.update { it.copy(isExportingPdf = false, pdfExportSuccess = pdfFile) }
+                } else {
+                    _state.update { it.copy(isExportingPdf = false, error = "Erreur lors de la création du PDF") }
+                }
+            } catch (e: Exception) {
+                _state.update { it.copy(isExportingPdf = false, error = "Erreur: ${e.message}") }
+            }
+        }
+    }
+    
+    // ============ Méthodes Firebase ============
+    
+    fun signInAnonymously() {
+        viewModelScope.launch {
+            val success = firebaseSyncService.signInAnonymously()
+            if (success) {
+                _state.update { it.copy(syncResult = "Connecté en mode anonyme") }
+            }
+        }
+    }
+    
+    fun signOut() {
+        viewModelScope.launch {
+            firebaseSyncService.signOut()
+            _state.update { it.copy(syncResult = "Déconnecté") }
+        }
+    }
+    
+    fun toggleSyncEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            firebaseSyncService.setSyncEnabled(enabled)
+        }
+    }
+    
+    fun syncNow() {
+        viewModelScope.launch {
+            val batteries = getAllBatteriesUseCase().first()
+            when (val result = firebaseSyncService.syncBatteries(batteries)) {
+                is SyncResult.Success -> {
+                    _state.update { 
+                        it.copy(syncResult = "Synchronisé: ${result.uploadedCount} batteries envoyées") 
+                    }
+                }
+                is SyncResult.Error -> {
+                    _state.update { it.copy(syncError = result.message) }
+                }
+                is SyncResult.NotAuthenticated -> {
+                    _state.update { it.copy(syncError = "Non authentifié") }
+                }
+                is SyncResult.Disabled -> {
+                    _state.update { it.copy(syncError = "Synchronisation désactivée") }
+                }
+            }
+        }
+    }
+    
+    fun clearSyncError() {
+        firebaseSyncService.clearError()
+        _state.update { it.copy(syncError = null) }
+    }
+    
+    fun clearSyncResult() {
+        _state.update { it.copy(syncResult = null) }
+    }
+    
     fun clearExportSuccess() {
         _state.update { it.copy(exportSuccess = null) }
     }
     
     fun clearImportSuccess() {
         _state.update { it.copy(importSuccess = null) }
+    }
+    
+    fun clearPdfExportSuccess() {
+        _state.update { it.copy(pdfExportSuccess = null) }
     }
     
     fun clearError() {

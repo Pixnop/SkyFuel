@@ -8,9 +8,12 @@ import androidx.room.TypeConverters
 import leonfvt.skyfuel_app.data.local.converter.DateTimeConverters
 import leonfvt.skyfuel_app.data.local.dao.BatteryDao
 import leonfvt.skyfuel_app.data.local.dao.BatteryHistoryDao
+import leonfvt.skyfuel_app.data.local.dao.CategoryDao
 import leonfvt.skyfuel_app.data.local.dao.ChargeReminderDao
 import leonfvt.skyfuel_app.data.local.entity.BatteryEntity
 import leonfvt.skyfuel_app.data.local.entity.BatteryHistoryEntity
+import leonfvt.skyfuel_app.data.local.entity.BatteryCategoryCrossRef
+import leonfvt.skyfuel_app.data.local.entity.CategoryEntity
 import leonfvt.skyfuel_app.data.local.entity.ChargeReminderEntity
 import leonfvt.skyfuel_app.data.local.migration.DatabaseMigrations
 
@@ -28,8 +31,14 @@ import leonfvt.skyfuel_app.data.local.migration.DatabaseMigrations
  * 3. Tester la migration avec Room Testing
  */
 @Database(
-    entities = [BatteryEntity::class, BatteryHistoryEntity::class, ChargeReminderEntity::class],
-    version = 2,
+    entities = [
+        BatteryEntity::class, 
+        BatteryHistoryEntity::class, 
+        ChargeReminderEntity::class,
+        CategoryEntity::class,
+        BatteryCategoryCrossRef::class
+    ],
+    version = 4,
     exportSchema = true
 )
 @TypeConverters(DateTimeConverters::class)
@@ -48,6 +57,11 @@ abstract class AppDatabase : RoomDatabase() {
      * Récupère le DAO pour les rappels de charge
      */
     abstract fun chargeReminderDao(): ChargeReminderDao
+
+    /**
+     * Récupère le DAO pour les catégories
+     */
+    abstract fun categoryDao(): CategoryDao
 
     companion object {
         const val DATABASE_NAME = "skyfuel_database"
