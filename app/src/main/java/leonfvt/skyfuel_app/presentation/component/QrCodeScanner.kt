@@ -63,12 +63,6 @@ import java.util.concurrent.Executors
 
 private const val TAG = "QrCodeScanner"
 
-/**
- * Composant pour scanner les QR codes
- * @param onQrCodeScanned Callback appelé lorsqu'un QR code est scanné avec succès
- * @param modifier Modificateur pour personnaliser l'apparence
- * @param cooldownMs Délai minimum entre deux scans (anti-doublons)
- */
 @SuppressLint("UnsafeOptInUsageError")
 @Composable
 fun QrCodeScanner(
@@ -78,16 +72,19 @@ fun QrCodeScanner(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
-    val executor = remember { Executors.newSingleThreadExecutor() }
+    
+    // Clé unique pour forcer la recréation du scanner
+    val scannerKey = remember { System.currentTimeMillis() }
     
     // Feedback pour le scan
     val scanFeedback = remember { ScanFeedback(context) }
     
-    // État pour le cooldown et l'animation
-    var lastScanTime by remember { mutableLongStateOf(0L) }
+    // État pour l'animation - utiliser remember avec clé pour réinitialiser
     var showSuccessAnimation by remember { mutableStateOf(false) }
-    var lastScannedCode by remember { mutableStateOf<String?>(null) }
+    
+    // Références mutables pour l'analyzer (évite les problèmes de capture)
+    val lastScanTimeRef = remember { mutableLongStateOf(0L) }
+    val lastScannedCodeRef = remember { mutableStateOf<String?>(null) }
     
     // Animation de succès
     val successScale by animateFloatAsState(
@@ -100,13 +97,6 @@ fun QrCodeScanner(
         animationSpec = tween(durationMillis = 300),
         label = "successAlpha"
     )
-    
-    // Nettoyage des ressources
-    DisposableEffect(Unit) {
-        onDispose {
-            scanFeedback.release()
-        }
-    }
     
     // Reset de l'animation après affichage
     LaunchedEffect(showSuccessAnimation) {
@@ -122,85 +112,121 @@ fun QrCodeScanner(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        AndroidView(
-            modifier = Modifier.fillMaxSize(),
-            factory = { ctx ->
-                val previewView = PreviewView(ctx)
-                
-                // Configuration de l'aperçu de la caméra
-                val preview = Preview.Builder().build()
-                preview.setSurfaceProvider(previewView.surfaceProvider)
-                
-                // Configuration de l'analyseur d'image pour détecter les QR codes
-                val imageAnalysis = ImageAnalysis.Builder()
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                
-                imageAnalysis.setAnalyzer(executor, { imageProxy ->
-                    val currentTime = System.currentTimeMillis()
-                    
-                    // Vérifier le cooldown
-                    if (currentTime - lastScanTime < cooldownMs) {
-                        imageProxy.close()
-                        return@setAnalyzer
-                    }
-                    
-                    // Traitement de l'image pour détecter les QR codes
-                    val buffer = imageProxy.planes[0].buffer
-                    val data = ByteArray(buffer.remaining())
-                    buffer.get(data)
-                    
-                    val width = imageProxy.width
-                    val height = imageProxy.height
-                    
-                    val source = PlanarYUVLuminanceSource(
-                        data, width, height, 0, 0, width, height, false
-                    )
-                    
-                    val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
-                    
+        // Utiliser key pour forcer la recréation de AndroidView
+        androidx.compose.runtime.key(scannerKey) {
+            var previewView: PreviewView? by remember { mutableStateOf(null) }
+            var cameraProvider: ProcessCameraProvider? by remember { mutableStateOf(null) }
+            val executor = remember { Executors.newSingleThreadExecutor() }
+            
+            // Nettoyage des ressources et libération de la caméra
+            DisposableEffect(Unit) {
+                onDispose {
+                    scanFeedback.release()
                     try {
-                        val result = MultiFormatReader().decode(binaryBitmap)
-                        val scannedText = result.text
-                        
-                        // Éviter de scanner le même code plusieurs fois de suite
-                        if (scannedText != lastScannedCode || currentTime - lastScanTime > cooldownMs * 2) {
-                            lastScanTime = currentTime
-                            lastScannedCode = scannedText
-                            
-                            // Feedback haptic + sonore
-                            scanFeedback.triggerSuccessFeedback()
-                            
-                            // Afficher l'animation de succès
-                            showSuccessAnimation = true
-                            
-                            Log.d(TAG, "QR Code scanné: $scannedText")
-                            onQrCodeScanned(scannedText)
-                        }
+                        cameraProvider?.unbindAll()
+                        Log.d(TAG, "Camera unbound on dispose")
                     } catch (e: Exception) {
-                        // Pas de QR code détecté, on continue à scanner
-                    } finally {
-                        imageProxy.close()
+                        Log.e(TAG, "Error unbinding camera", e)
                     }
-                })
-                
-                // Configuration de la caméra
-                try {
-                    val cameraProvider = cameraProviderFuture.get()
-                    cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        imageAnalysis
-                    )
-                } catch (e: Exception) {
-                    Log.e(TAG, "Erreur de liaison à la caméra", e)
+                    executor.shutdown()
                 }
-                
-                previewView
             }
-        )
+            
+            // Initialiser la caméra
+            LaunchedEffect(previewView) {
+                previewView?.let { view ->
+                    try {
+                        val provider = ProcessCameraProvider.getInstance(context).get()
+                        cameraProvider = provider
+                        
+                        // S'assurer de libérer les anciennes liaisons
+                        provider.unbindAll()
+                        
+                        // Configuration de l'aperçu
+                        val preview = Preview.Builder().build()
+                        preview.setSurfaceProvider(view.surfaceProvider)
+                        
+                        // Configuration de l'analyseur d'image
+                        val imageAnalysis = ImageAnalysis.Builder()
+                            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                            .build()
+                        
+                        imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                            val currentTime = System.currentTimeMillis()
+                            
+                            // Vérifier le cooldown
+                            if (currentTime - lastScanTimeRef.longValue < cooldownMs) {
+                                imageProxy.close()
+                                return@setAnalyzer
+                            }
+                            
+                            // Traitement de l'image pour détecter les QR codes
+                            val buffer = imageProxy.planes[0].buffer
+                            val data = ByteArray(buffer.remaining())
+                            buffer.get(data)
+                            
+                            val width = imageProxy.width
+                            val height = imageProxy.height
+                            
+                            val source = PlanarYUVLuminanceSource(
+                                data, width, height, 0, 0, width, height, false
+                            )
+                            
+                            val binaryBitmap = BinaryBitmap(HybridBinarizer(source))
+                            
+                            try {
+                                val result = MultiFormatReader().decode(binaryBitmap)
+                                val scannedText = result.text
+                                
+                                // Éviter de scanner le même code plusieurs fois de suite
+                                if (scannedText != lastScannedCodeRef.value ||
+                                    currentTime - lastScanTimeRef.longValue > cooldownMs * 2) {
+                                    lastScanTimeRef.longValue = currentTime
+                                    lastScannedCodeRef.value = scannedText
+
+                                    Log.d(TAG, "QR Code scanné: $scannedText")
+
+                                    // Exécuter sur le thread principal pour les mises à jour Compose
+                                    ContextCompat.getMainExecutor(context).execute {
+                                        // Feedback haptic + sonore
+                                        scanFeedback.triggerSuccessFeedback()
+
+                                        // Afficher l'animation de succès
+                                        showSuccessAnimation = true
+
+                                        Log.d(TAG, "Calling onQrCodeScanned callback on main thread")
+                                        onQrCodeScanned(scannedText)
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                // Pas de QR code détecté, on continue à scanner
+                            } finally {
+                                imageProxy.close()
+                            }
+                        }
+                        
+                        // Lier à la lifecycle
+                        provider.bindToLifecycle(
+                            lifecycleOwner,
+                            CameraSelector.DEFAULT_BACK_CAMERA,
+                            preview,
+                            imageAnalysis
+                        )
+                        
+                        Log.d(TAG, "Camera bound successfully")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Erreur de liaison à la caméra", e)
+                    }
+                }
+            }
+            
+            AndroidView(
+                modifier = Modifier.fillMaxSize(),
+                factory = { ctx ->
+                    PreviewView(ctx).also { previewView = it }
+                }
+            )
+        }
         
         // Overlay de scan avec animation
         Box(

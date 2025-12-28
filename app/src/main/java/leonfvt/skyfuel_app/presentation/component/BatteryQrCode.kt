@@ -78,9 +78,13 @@ fun BatteryQrCodeDialog(
     
     val qrContent = qrData.encode()
     
-    // Générer l'image du QR code
-    val qrCodeBitmap = QrCodeGenerator.rememberQrCodeBitmap(
+    // Générer l'identifiant court SF-XXX
+    val shortId = QrCodeGenerator.generateShortId(battery.id)
+    
+    // Générer l'image du QR code avec le label SF-XXX
+    val qrCodeBitmap = QrCodeGenerator.rememberQrCodeBitmapWithBatteryId(
         content = qrContent,
+        batteryId = battery.id,
         size = 300.dp,
         padding = 2
     )
@@ -135,6 +139,14 @@ fun BatteryQrCodeDialog(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center
+                )
+                
+                // Identifiant court SF-XXX (visible sur le QR code)
+                Text(
+                    text = shortId,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
                 
                 // Numéro de série
@@ -288,12 +300,16 @@ fun ShareBatteryQrCodeDialog(
     onShareSimple: (Bitmap) -> Unit,
     viewModel: QrCodeViewModel = hiltViewModel()
 ) {
-    // Générer le QR code de partage complet
+    // Générer l'identifiant court SF-XXX
+    val shortId = QrCodeGenerator.generateShortId(battery.id)
+    
+    // Générer le QR code de partage complet avec le label SF-XXX
     val shareQrData = QrCodeData.forShareBattery(battery)
     val shareQrContent = shareQrData.encode()
     
-    val shareQrCodeBitmap = QrCodeGenerator.rememberQrCodeBitmap(
+    val shareQrCodeBitmap = QrCodeGenerator.rememberQrCodeBitmapWithBatteryId(
         content = shareQrContent,
+        batteryId = battery.id,
         size = 300.dp,
         padding = 2
     )
@@ -349,6 +365,14 @@ fun ShareBatteryQrCodeDialog(
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary,
                     textAlign = TextAlign.Center
+                )
+                
+                // Identifiant court SF-XXX (visible sur le QR code)
+                Text(
+                    text = shortId,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
                 )
                 
                 Text(

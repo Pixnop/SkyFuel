@@ -36,25 +36,29 @@ class ScanFeedback(private val context: Context) {
      * Déclenche une vibration courte de succès
      */
     private fun triggerHapticFeedback() {
-        val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
-            vibratorManager.defaultVibrator
-        } else {
-            @Suppress("DEPRECATION")
-            context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        }
-        
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // Pattern: court-pause-court pour un feedback de succès
-            val effect = VibrationEffect.createWaveform(
-                longArrayOf(0, 50, 50, 50), // timings
-                intArrayOf(0, 200, 0, 150), // amplitudes
-                -1 // don't repeat
-            )
-            vibrator.vibrate(effect)
-        } else {
-            @Suppress("DEPRECATION")
-            vibrator.vibrate(longArrayOf(0, 50, 50, 50), -1)
+        try {
+            val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+                vibratorManager.defaultVibrator
+            } else {
+                @Suppress("DEPRECATION")
+                context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                // Pattern: court-pause-court pour un feedback de succès
+                val effect = VibrationEffect.createWaveform(
+                    longArrayOf(0, 50, 50, 50), // timings
+                    intArrayOf(0, 200, 0, 150), // amplitudes
+                    -1 // don't repeat
+                )
+                vibrator.vibrate(effect)
+            } else {
+                @Suppress("DEPRECATION")
+                vibrator.vibrate(longArrayOf(0, 50, 50, 50), -1)
+            }
+        } catch (e: SecurityException) {
+            // Permission VIBRATE non accordée, ignorer silencieusement
         }
     }
     

@@ -63,11 +63,18 @@ object QrCodeExtensions {
         }
 
         // Traiter le nouveau format "SKYFUEL::BATTERY::123::..."
+        Log.d(TAG, "Processing new format QR code: $qrContent")
         scope.launch {
             viewModel.getBatteryFromQrCode(
                 qrContent,
-                onBatteryFound = onBatteryFound,
-                onBatteryNotFound = onError
+                onBatteryFound = { battery ->
+                    Log.d(TAG, "Battery found: ${battery.id} - ${battery.brand} ${battery.model}")
+                    onBatteryFound(battery)
+                },
+                onBatteryNotFound = { error ->
+                    Log.e(TAG, "Battery not found: $error")
+                    onError(error)
+                }
             )
         }
     }

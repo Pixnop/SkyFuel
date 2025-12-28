@@ -29,10 +29,10 @@ class QrCodeService @Inject constructor(
     private val TAG = "QrCodeService"
     
     /**
-     * Génère un QR code pour une batterie
+     * Génère un QR code pour une batterie avec son identifiant SF-XXX visible
      * @param battery Batterie pour laquelle générer le QR code
      * @param size Taille du QR code en pixels
-     * @return Bitmap contenant le QR code ou null en cas d'erreur
+     * @return Bitmap contenant le QR code avec le label ou null en cas d'erreur
      */
     fun generateBatteryQrCode(battery: Battery, size: Int = 512): Bitmap? {
         try {
@@ -44,7 +44,8 @@ class QrCodeService @Inject constructor(
             )
             
             val qrContent = qrData.encode()
-            return QrCodeGenerator.generateQrCodeBitmap(qrContent, size)
+            val label = QrCodeGenerator.generateShortId(battery.id)
+            return QrCodeGenerator.generateQrCodeBitmapWithLabel(qrContent, size, 2, label)
         } catch (e: Exception) {
             Log.e(TAG, "Erreur lors de la génération du QR code: ${e.message}", e)
             return null
@@ -153,15 +154,17 @@ class QrCodeService @Inject constructor(
     
     /**
      * Génère un QR code pour partager une batterie (contient toutes les données)
+     * avec son identifiant SF-XXX visible
      * @param battery Batterie à partager
      * @param size Taille du QR code en pixels
-     * @return Bitmap contenant le QR code ou null en cas d'erreur
+     * @return Bitmap contenant le QR code avec le label ou null en cas d'erreur
      */
     fun generateShareQrCode(battery: Battery, size: Int = 512): Bitmap? {
         return try {
             val qrData = QrCodeData.forShareBattery(battery)
             val qrContent = qrData.encode()
-            QrCodeGenerator.generateQrCodeBitmap(qrContent, size)
+            val label = QrCodeGenerator.generateShortId(battery.id)
+            QrCodeGenerator.generateQrCodeBitmapWithLabel(qrContent, size, 2, label)
         } catch (e: Exception) {
             Log.e(TAG, "Erreur lors de la génération du QR code de partage: ${e.message}", e)
             null

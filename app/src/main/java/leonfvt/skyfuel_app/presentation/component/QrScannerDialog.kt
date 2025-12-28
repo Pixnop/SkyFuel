@@ -51,17 +51,7 @@ fun QrScannerDialog(
     viewModel: QrCodeViewModel = hiltViewModel()
 ) {
     var hasScannedQrCode by remember { mutableStateOf(false) }
-    val state by viewModel.state.collectAsState()
-    
-    // Action à effectuer après un scan
-    LaunchedEffect(state.scanResult) {
-        state.scanResult?.let { qrContent ->
-            if (!hasScannedQrCode) {
-                hasScannedQrCode = true
-                onQrCodeScanned(qrContent)
-            }
-        }
-    }
+    var isProcessing by remember { mutableStateOf(false) }
     
     // Réinitialisation de l'état lorsque la boîte de dialogue est fermée
     DisposableEffect(Unit) {
@@ -81,37 +71,14 @@ fun QrScannerDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(600.dp)
-                .size(width = androidx.compose.ui.unit.Dp.Unspecified, height = 600.dp),
+                .height(600.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface
         ) {
             Box(contentAlignment = Alignment.Center) {
                 when {
-                    // Affiche l'erreur si présente
-                    state.errorMessage != null -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.error
-                            )
-                            Text(
-                                text = state.errorMessage ?: "Une erreur est survenue",
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                color = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.padding(top = 16.dp)
-                            )
-                        }
-                    }
-                    
                     // Affiche l'indicateur de chargement pendant le traitement
-                    state.isProcessingQrCode || hasScannedQrCode -> {
+                    isProcessing -> {
                         Box(contentAlignment = Alignment.Center) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(48.dp),
@@ -121,28 +88,6 @@ fun QrScannerDialog(
                                 text = "Traitement du QR code...",
                                 style = MaterialTheme.typography.bodyLarge,
                                 modifier = Modifier.padding(top = 80.dp)
-                            )
-                        }
-                    }
-                    
-                    // Affiche le message de succès
-                    state.successMessage != null -> {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.QrCode,
-                                contentDescription = null,
-                                modifier = Modifier.size(48.dp),
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = state.successMessage ?: "QR code traité avec succès",
-                                style = MaterialTheme.typography.bodyLarge,
-                                textAlign = TextAlign.Center,
-                                color = Color.Green,
-                                modifier = Modifier.padding(top = 16.dp)
                             )
                         }
                     }
@@ -174,8 +119,13 @@ fun QrScannerDialog(
                         ) {
                             QrCodeScanner(
                                 onQrCodeScanned = { qrContent ->
-                                    // En cas de scan, traiter le QR code avec le nouveau service
-                                    viewModel.processScannedQrCode(qrContent)
+                                    if (!hasScannedQrCode) {
+                                        hasScannedQrCode = true
+                                        isProcessing = true
+                                        android.util.Log.d("QrScannerDialog", "QR scanned, calling callback: $qrContent")
+                                        // Appeler directement le callback - la navigation sera gérée par HomeScreen
+                                        onQrCodeScanned(qrContent)
+                                    }
                                 }
                             )
                         }
