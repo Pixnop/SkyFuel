@@ -4,19 +4,10 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    
-    <!-- Sky blue gradient background -->
+
+    <!-- Solid background matching the gradient bottom color -->
     <path
-        android:pathData="M0,0h108v108H0z"
-        android:fillColor="#1976D2"/>
-    
-    <!-- Lighter accent circle -->
-    <path
-        android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0"
-        android:fillColor="#2196F3"/>
-    
-    <!-- Inner glow -->
-    <path
-        android:pathData="M54,54m-35,0a35,35 0,1 1,70 0a35,35 0,1 1,-70 0"
-        android:fillColor="#42A5F5"/>
+        android:fillColor="#0683FD"
+        android:pathData="M0,0h108v108H0z"/>
+
 </vector>
