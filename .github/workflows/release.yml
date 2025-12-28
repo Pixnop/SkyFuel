@@ -1,10 +1,7 @@
 name: Create Release
 
 on:
-  push:
-    tags:
-      - 'v*' # Le workflow se déclenchera quand vous pousserez un tag commençant par "v"
-  workflow_dispatch:
+  workflow_dispatch:  # Déclenchement manuel uniquement
     inputs:
       version:
         description: 'Version number (e.g. 1.0.0)'
@@ -14,25 +11,37 @@ on:
         description: 'Release notes'
         required: false
         default: 'New release'
+      prerelease:
+        description: 'Pre-release?'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # Donne les permissions d'écriture pour créer des releases
+      contents: write
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           java-version: '17'
           distribution: 'temurin'
           cache: gradle
-      
+
+      - name: Decode google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
+        run: |
+          echo "$GOOGLE_SERVICES_JSON" | base64 -d > app/google-services.json
+          echo "google-services.json créé avec succès"
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
-      
+
       - name: Build Debug & Release APK
         run: |
           ./gradlew assembleDebug
@@ -41,40 +50,14 @@ jobs:
       - name: List APK files
         run: find app/build/outputs -name "*.apk" -type f
       
-      - name: Sign APK
-        if: false # Désactivé par défaut - à activer après avoir configuré la signature
-        run: |
-          echo "La signature sera configurée ultérieurement"
-          # Vous devrez configurer des secrets GitHub pour stocker votre keystore et mot de passe
-      
-      - name: Auto-generate version name (from tag)
-        if: github.event_name == 'push'
-        id: tag_version
-        run: echo "version=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
-      
-      - name: Get version from input
-        if: github.event_name == 'workflow_dispatch'
-        id: input_version
-        run: echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-      
-      - name: Set version name
-        id: version
-        run: |
-          if [ "${{ github.event_name }}" == "push" ]; then
-            echo "value=${{ steps.tag_version.outputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "value=${{ steps.input_version.outputs.version }}" >> $GITHUB_OUTPUT
-          fi
-      
       - name: Create Release
-        id: create_release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'push' && github.ref || format('v{0}', github.event.inputs.version) }}
-          name: SkyFuel v${{ steps.version.outputs.value }}
-          body: ${{ github.event.inputs.release_notes || 'SkyFuel release version' }} ${{ steps.version.outputs.value }}
+          tag_name: v${{ inputs.version }}
+          name: SkyFuel v${{ inputs.version }}
+          body: ${{ inputs.release_notes }}
           draft: false
-          prerelease: false
+          prerelease: ${{ inputs.prerelease }}
           files: |
             app/build/outputs/apk/release/*.apk
             app/build/outputs/apk/debug/*.apk
