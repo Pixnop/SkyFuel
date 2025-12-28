@@ -38,6 +38,7 @@ import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Vibration
 import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,6 +81,8 @@ import leonfvt.skyfuel_app.presentation.component.NotificationPermissionCard
 import leonfvt.skyfuel_app.presentation.viewmodel.SettingsViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.ThemeViewModel
 import java.io.File
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,6 +96,7 @@ fun SettingsScreen(
     val themeState by themeViewModel.themeState.collectAsState()
     val context = LocalContext.current
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val coroutineScope = rememberCoroutineScope()
     
     var showExportDialog by remember { mutableStateOf(false) }
     var showImportDialog by remember { mutableStateOf(false) }
@@ -504,7 +508,7 @@ fun SettingsScreen(
                                 Spacer(modifier = Modifier.height(8.dp))
                             }
                             
-                            // Bouton synchroniser maintenant
+                            // Boutons synchroniser/télécharger
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -522,27 +526,78 @@ fun SettingsScreen(
                                         )
                                     } else {
                                         Icon(
-                                            imageVector = Icons.Default.Sync,
+                                            imageVector = Icons.Default.CloudUpload,
                                             contentDescription = null,
                                             modifier = Modifier.size(18.dp)
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (state.isSyncing) "Synchronisation..." else "Synchroniser")
+                                    Text("Envoyer")
                                 }
-                                
+
                                 OutlinedButton(
-                                    onClick = { viewModel.signOut() },
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = MaterialTheme.colorScheme.error
-                                    )
+                                    onClick = { viewModel.downloadFromCloud() },
+                                    enabled = !state.isSyncing,
+                                    modifier = Modifier.weight(1f)
                                 ) {
-                                    Text("Déconnexion")
+                                    Icon(
+                                        imageVector = Icons.Default.CloudDownload,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Récupérer")
                                 }
                             }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Bouton déconnexion
+                            OutlinedButton(
+                                onClick = { viewModel.signOut() },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.outlinedButtonColors(
+                                    contentColor = MaterialTheme.colorScheme.error
+                                )
+                            ) {
+                                Text("Déconnexion")
+                            }
                         } else {
-                            // Bouton de connexion
+                            // Bouton de connexion Google (recommandé)
                             Button(
+                                onClick = {
+                                    // Lancer Google Sign-In via Activity
+                                    val activity = context as? android.app.Activity
+                                    if (activity != null) {
+                                        coroutineScope.launch {
+                                            val helper = leonfvt.skyfuel_app.util.GoogleSignInHelper(activity)
+                                            val webClientId = context.getString(leonfvt.skyfuel_app.R.string.default_web_client_id)
+                                            when (val result = helper.signIn(webClientId)) {
+                                                is leonfvt.skyfuel_app.util.GoogleSignInResult.Success -> {
+                                                    viewModel.signInWithGoogle(result.idToken)
+                                                }
+                                                is leonfvt.skyfuel_app.util.GoogleSignInResult.Error -> {
+                                                    Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Se connecter avec Google")
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // Bouton de connexion anonyme (alternatif)
+                            OutlinedButton(
                                 onClick = { viewModel.signInAnonymously() },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
@@ -552,13 +607,13 @@ fun SettingsScreen(
                                     modifier = Modifier.size(18.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("Se connecter (anonyme)")
+                                Text("Connexion anonyme")
                             }
-                            
+
                             Spacer(modifier = Modifier.height(8.dp))
-                            
+
                             Text(
-                                text = "Connectez-vous pour sauvegarder vos batteries dans le cloud.",
+                                text = "Google recommandé: vos données sont récupérables après réinstallation.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

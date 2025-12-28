@@ -2,4 +2,5 @@
     <string name="app_name">SkyFuel-app</string>
     <string name="refresh">Rafraîchir</string>
     <string name="widget_description">Affiche un résumé de l\'état de vos batteries de drones</string>
+    <string name="default_web_client_id">664443925832-56kke38a1guqhmnashou0cpvt0kbrd1k.apps.googleusercontent.com</string>
 </resources>

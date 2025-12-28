@@ -67,7 +67,8 @@ class SettingsViewModel @Inject constructor(
     private val getAllBatteriesUseCase: GetAllBatteriesUseCase,
     private val userPreferencesRepository: UserPreferencesRepository,
     private val pdfExporter: PdfExporter,
-    private val firebaseSyncService: FirebaseSyncService
+    private val firebaseSyncService: FirebaseSyncService,
+    private val batteryRepository: leonfvt.skyfuel_app.domain.repository.BatteryRepository
 ) : ViewModel() {
     
     private val _state = MutableStateFlow(SettingsState())
@@ -223,6 +224,60 @@ class SettingsViewModel @Inject constructor(
             val success = firebaseSyncService.signInAnonymously()
             if (success) {
                 _state.update { it.copy(syncResult = "Connecté en mode anonyme") }
+            }
+        }
+    }
+
+    fun signInWithGoogle(idToken: String) {
+        viewModelScope.launch {
+            val success = firebaseSyncService.signInWithGoogle(idToken)
+            if (success) {
+                _state.update { it.copy(syncResult = "Connecté avec Google") }
+            }
+        }
+    }
+
+    fun downloadFromCloud() {
+        viewModelScope.launch {
+            _state.update { it.copy(isSyncing = true) }
+
+            try {
+                val remoteBatteries = firebaseSyncService.downloadBatteries()
+                if (remoteBatteries != null) {
+                    var importedCount = 0
+                    var skippedCount = 0
+
+                    remoteBatteries.forEach { battery ->
+                        val existing = batteryRepository.getBatteryBySerialNumber(battery.serialNumber)
+                        if (existing == null) {
+                            batteryRepository.insertBattery(battery)
+                            importedCount++
+                        } else {
+                            skippedCount++
+                        }
+                    }
+
+                    _state.update {
+                        it.copy(
+                            isSyncing = false,
+                            syncResult = "Téléchargé: $importedCount batteries ($skippedCount déjà présentes)"
+                        )
+                    }
+                } else {
+                    _state.update {
+                        it.copy(
+                            isSyncing = false,
+                            syncError = "Impossible de télécharger les batteries"
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                _state.update {
+                    it.copy(
+                        isSyncing = false,
+                        syncError = "Erreur: ${e.message}"
+                    )
+                }
             }
         }
     }
