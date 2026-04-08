@@ -17,7 +17,7 @@ data class ChargeReminder(
     val notes: String = ""
 ) {
     fun getFormattedTime(): String {
-        return String.format("%02d:%02d", time.hour, time.minute)
+        return String.format(java.util.Locale.getDefault(), "%02d:%02d", time.hour, time.minute)
     }
     
     fun getFormattedDays(): String {

@@ -10,7 +10,6 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -100,13 +99,10 @@ fun SkyFuelTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            
-            // Set status bar color with slight transparency for a more modern look
-            window.statusBarColor = colorScheme.primary.toArgb()
-            
+
             // Set system bars appearance based on theme
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-            
+
             // Edge-to-edge design (full screen immersive mode)
             WindowCompat.setDecorFitsSystemWindows(window, false)
         }

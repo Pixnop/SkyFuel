@@ -162,6 +162,7 @@ fun BatteryForm(
             onExpandedChange = { batteryTypeExpanded = it },
             modifier = Modifier.fillMaxWidth()
         ) {
+            @Suppress("DEPRECATION")
             OutlinedTextField(
                 modifier = Modifier
                     .fillMaxWidth()

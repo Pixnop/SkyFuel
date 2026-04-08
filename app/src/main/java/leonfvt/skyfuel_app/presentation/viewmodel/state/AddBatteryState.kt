@@ -1,6 +1,7 @@
 package leonfvt.skyfuel_app.presentation.viewmodel.state
 
 import leonfvt.skyfuel_app.domain.model.BatteryType
+import leonfvt.skyfuel_app.domain.model.Category
 import java.time.LocalDate
 
 /**
@@ -22,7 +23,10 @@ data class AddBatteryState(
     val modelError: Boolean = false,
     val serialNumberError: Boolean = false,
     val cellsError: Boolean = false,
-    val capacityError: Boolean = false
+    val capacityError: Boolean = false,
+    // Catégories
+    val allCategories: List<Category> = emptyList(),
+    val selectedCategoryIds: Set<Long> = emptySet()
 ) {
     /**
      * Vérifie si le formulaire est valide
@@ -53,6 +57,7 @@ sealed class AddBatteryEvent {
     data class UpdateCapacity(val capacity: String) : AddBatteryEvent()
     data class UpdatePurchaseDate(val date: LocalDate) : AddBatteryEvent()
     data class UpdateNotes(val notes: String) : AddBatteryEvent()
+    data class ToggleCategory(val categoryId: Long) : AddBatteryEvent()
     data object SubmitBattery : AddBatteryEvent()
     data object NavigateBack : AddBatteryEvent()
 }

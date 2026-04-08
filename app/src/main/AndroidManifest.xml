@@ -37,7 +37,6 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:label="@string/app_name"
             android:theme="@style/Theme.SkyFuelapp">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -60,6 +59,18 @@
                 android:resource="@xml/widget_battery_info" />
         </receiver>
         
+        <!-- Désactiver l'initialisation automatique de WorkManager (on-demand via Hilt) -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
+
         <!-- Provider pour le partage des QR codes -->
         <provider
             android:name="androidx.core.content.FileProvider"

@@ -25,14 +25,14 @@ import androidx.compose.material.icons.filled.Battery1Bar
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.Notes
-import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -93,21 +93,21 @@ fun BatteryActionsCard(
                 onStatusChange = onStatusChange
             )
             
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 12.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
             
             VoltageRecordAction(onVoltageRecord = onVoltageRecord)
             
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 12.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
             
             AddNoteAction(onAddNote = onAddNote)
             
-            Divider(
+            HorizontalDivider(
                 modifier = Modifier.padding(vertical = 12.dp),
                 color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
             )
@@ -365,7 +365,7 @@ fun AddNoteAction(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Notes, 
+                imageVector = Icons.AutoMirrored.Filled.Notes, 
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -402,7 +402,7 @@ fun AddNoteAction(
                     modifier = Modifier.fillMaxWidth(),
                     trailingIcon = {
                         Icon(
-                            imageVector = Icons.Default.Send,
+                            imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Envoyer",
                             modifier = Modifier
                                 .clickable {

@@ -9,6 +9,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import leonfvt.skyfuel_app.data.local.dao.CategoryDao
+import leonfvt.skyfuel_app.data.repository.CategoryRepository
 import leonfvt.skyfuel_app.domain.model.BatteryAlert
 import leonfvt.skyfuel_app.domain.usecase.GetAllBatteriesUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryAlertsUseCase
@@ -31,7 +33,9 @@ class HomeViewModel @Inject constructor(
     private val getBatteriesByStatusUseCase: GetBatteriesByStatusUseCase,
     private val searchBatteriesUseCase: SearchBatteriesUseCase,
     private val getBatteryStatisticsUseCase: GetBatteryStatisticsUseCase,
-    private val getBatteryAlertsUseCase: GetBatteryAlertsUseCase
+    private val getBatteryAlertsUseCase: GetBatteryAlertsUseCase,
+    private val categoryRepository: CategoryRepository,
+    private val categoryDao: CategoryDao
 ) : ViewModel() {
     
     // État interne mutable
@@ -54,6 +58,7 @@ class HomeViewModel @Inject constructor(
         loadBatteries()
         loadStatistics()
         loadAlerts()
+        loadCategories()
     }
     
     /**
@@ -87,6 +92,14 @@ class HomeViewModel @Inject constructor(
             }
             is BatteryListEvent.AlertClicked -> {
                 // Navigation gérée dans l'UI
+            }
+            is BatteryListEvent.FilterByCategory -> {
+                _state.update { it.copy(filterCategoryId = event.categoryId) }
+                if (event.categoryId != null) {
+                    filterByCategory(event.categoryId)
+                } else {
+                    loadBatteries()
+                }
             }
             else -> {} // Les autres événements sont gérés ailleurs
         }
@@ -195,6 +208,38 @@ class HomeViewModel @Inject constructor(
         )
     }
     
+    /**
+     * Charge les catégories
+     */
+    private fun loadCategories() {
+        viewModelScope.launch {
+            categoryRepository.getAllCategories().collect { categories ->
+                _state.update { it.copy(categories = categories) }
+            }
+        }
+    }
+
+    /**
+     * Filtre les batteries par catégorie
+     */
+    private fun filterByCategory(categoryId: Long) {
+        viewModelScope.launch {
+            categoryDao.getBatteryIdsForCategory(categoryId).collect { batteryIds ->
+                val allBatteries = _state.value.batteries
+                // Recharger toutes les batteries puis filtrer
+                executeFlowUseCase(
+                    useCase = { getAllBatteriesUseCase() },
+                    onStart = { },
+                    onError = { },
+                    onEach = { batteries ->
+                        val filtered = batteries.filter { it.id in batteryIds }
+                        _state.update { it.copy(batteries = filtered, isLoading = false) }
+                    }
+                )
+            }
+        }
+    }
+
     /**
      * Charge les statistiques des batteries
      */

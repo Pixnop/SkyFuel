@@ -51,6 +51,9 @@ interface BatteryDao {
     @Query("SELECT AVG(cycleCount) FROM batteries")
     suspend fun getAverageCycleCount(): Float
     
+    @Query("UPDATE batteries SET photoPath = :photoPath WHERE id = :batteryId")
+    suspend fun updateBatteryPhoto(batteryId: Long, photoPath: String?)
+
     @Query("DELETE FROM batteries")
     suspend fun deleteAllBatteries()
     

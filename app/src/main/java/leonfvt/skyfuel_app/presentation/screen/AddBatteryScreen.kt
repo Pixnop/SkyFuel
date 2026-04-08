@@ -42,6 +42,17 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.filled.Label
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.ui.draw.clip
+import leonfvt.skyfuel_app.domain.model.getComposeColor
 import leonfvt.skyfuel_app.presentation.component.BatteryForm
 import leonfvt.skyfuel_app.presentation.viewmodel.state.AddBatteryEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.AddBatteryState
@@ -164,8 +175,55 @@ fun AddBatteryScreen(
                     onNotesChange = { onEvent(AddBatteryEvent.UpdateNotes(it)) }
                 )
                 
+                // Section catégories (si des catégories existent)
+                if (state.allCategories.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.Label,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.size(8.dp))
+                        Text(
+                            text = "Catégories",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    @OptIn(ExperimentalLayoutApi::class)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        state.allCategories.forEach { category ->
+                            FilterChip(
+                                selected = state.selectedCategoryIds.contains(category.id),
+                                onClick = { onEvent(AddBatteryEvent.ToggleCategory(category.id)) },
+                                label = { Text(category.name) },
+                                leadingIcon = {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(8.dp)
+                                            .clip(CircleShape)
+                                            .background(category.getComposeColor())
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = category.getComposeColor().copy(alpha = 0.15f)
+                                )
+                            )
+                        }
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
-                
+
                 // Bouton de soumission
                 Button(
                     onClick = { onEvent(AddBatteryEvent.SubmitBattery) },

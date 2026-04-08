@@ -134,8 +134,9 @@ object QrCodeUtils {
                 
                 val imageFile = File(skyFuelDir, fileName)
                 fos = FileOutputStream(imageFile)
-                
+
                 // Rendre le fichier visible dans la galerie
+                @Suppress("DEPRECATION")
                 context.sendBroadcast(Intent(Intent.ACTION_MEDIA_SCANNER_SCAN_FILE, Uri.fromFile(imageFile)))
             }
             

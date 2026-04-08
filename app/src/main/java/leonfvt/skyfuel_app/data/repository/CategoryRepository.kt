@@ -1,6 +1,8 @@
 package leonfvt.skyfuel_app.data.repository
 
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import leonfvt.skyfuel_app.data.local.dao.CategoryDao
 import leonfvt.skyfuel_app.data.local.entity.BatteryCategoryCrossRef
@@ -18,7 +20,10 @@ class CategoryRepository @Inject constructor(
      */
     fun getAllCategories(): Flow<List<Category>> {
         return categoryDao.getAllCategories().map { entities ->
-            entities.map { it.toDomainModel(0) }
+            entities.map { entity ->
+                val count = categoryDao.getBatteryCountForCategory(entity.id).first()
+                entity.toDomainModel(count)
+            }
         }
     }
 
@@ -26,7 +31,9 @@ class CategoryRepository @Inject constructor(
      * Récupère une catégorie par son ID
      */
     suspend fun getCategoryById(id: Long): Category? {
-        return categoryDao.getCategoryById(id)?.toDomainModel(0)
+        val entity = categoryDao.getCategoryById(id) ?: return null
+        val count = categoryDao.getBatteryCountForCategory(id).first()
+        return entity.toDomainModel(count)
     }
 
     /**

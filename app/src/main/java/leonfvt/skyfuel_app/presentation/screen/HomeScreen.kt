@@ -33,8 +33,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
@@ -80,6 +80,8 @@ import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryAlert
 import leonfvt.skyfuel_app.domain.model.BatteryStatistics
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.Category
+import leonfvt.skyfuel_app.domain.model.getComposeColor
 import leonfvt.skyfuel_app.presentation.component.AlertsSection
 import leonfvt.skyfuel_app.presentation.component.BatteryCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
@@ -351,11 +353,14 @@ fun HomeScreen(
                             searchQuery = currentState.searchQuery,
                             filterStatus = currentState.filterStatus,
                             sortOption = currentState.sortOption,
+                            categories = currentState.categories,
+                            filterCategoryId = currentState.filterCategoryId,
                             onSearchQueryChange = { query -> onEvent(BatteryListEvent.Search(query)) },
                             onClearSearch = { onEvent(BatteryListEvent.ClearSearch) },
                             onSortSelected = { option -> onEvent(BatteryListEvent.Sort(option)) },
                             onFilterSelected = { status -> onEvent(BatteryListEvent.Filter(status)) },
-                            onBatteryClick = { battery -> 
+                            onFilterByCategory = { categoryId -> onEvent(BatteryListEvent.FilterByCategory(categoryId)) },
+                            onBatteryClick = { battery ->
                                 onEvent(BatteryListEvent.SelectBattery(battery))
                                 onNavigateToBatteryDetail(battery.id)
                             },
@@ -425,7 +430,7 @@ fun ErrorScreen(
         verticalArrangement = Arrangement.Center
     ) {
         Icon(
-            imageVector = Icons.Default.BatteryUnknown,
+            imageVector = Icons.AutoMirrored.Filled.BatteryUnknown,
             contentDescription = null,
             modifier = Modifier.size(80.dp),
             tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
@@ -488,7 +493,7 @@ fun EmptyScreen(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.BatteryUnknown,
+                imageVector = Icons.AutoMirrored.Filled.BatteryUnknown,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
                 tint = MaterialTheme.colorScheme.primary
@@ -576,7 +581,7 @@ fun EmptyFilterScreen(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.BatteryUnknown,
+                imageVector = Icons.AutoMirrored.Filled.BatteryUnknown,
                 contentDescription = null,
                 modifier = Modifier.size(72.dp),
                 tint = iconTint
@@ -635,10 +640,13 @@ fun ContentScreen(
     searchQuery: String,
     filterStatus: BatteryStatus?,
     sortOption: SortOption,
+    categories: List<Category> = emptyList(),
+    filterCategoryId: Long? = null,
     onSearchQueryChange: (String) -> Unit,
     onClearSearch: () -> Unit,
     onSortSelected: (SortOption) -> Unit,
     onFilterSelected: (BatteryStatus?) -> Unit,
+    onFilterByCategory: (Long?) -> Unit = {},
     onBatteryClick: (Battery) -> Unit,
     onAlertClick: (BatteryAlert) -> Unit,
     onDismissAlert: (BatteryAlert) -> Unit,
@@ -695,11 +703,49 @@ fun ContentScreen(
                         )
                     }
 
-                    // Filtres
+                    // Filtres par statut
                     FilterSection(
                         currentFilter = filterStatus,
                         onFilterSelected = onFilterSelected
                     )
+
+                    // Filtres par catégorie
+                    if (categories.isNotEmpty()) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            androidx.compose.material3.FilterChip(
+                                selected = filterCategoryId == null,
+                                onClick = { onFilterByCategory(null) },
+                                label = { Text("Toutes", style = MaterialTheme.typography.labelSmall) }
+                            )
+                            categories.forEach { category ->
+                                androidx.compose.material3.FilterChip(
+                                    selected = filterCategoryId == category.id,
+                                    onClick = {
+                                        onFilterByCategory(
+                                            if (filterCategoryId == category.id) null else category.id
+                                        )
+                                    },
+                                    label = { Text(category.name, style = MaterialTheme.typography.labelSmall) },
+                                    leadingIcon = {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(8.dp)
+                                                .clip(CircleShape)
+                                                .background(category.getComposeColor())
+                                        )
+                                    },
+                                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = category.getComposeColor().copy(alpha = 0.15f)
+                                    )
+                                )
+                            }
+                        }
+                    }
                 }
             }
             
@@ -731,8 +777,10 @@ fun ContentScreen(
                 BatteryCard(
                     battery = battery,
                     onClick = { onBatteryClick(battery) },
-                    modifier = Modifier.animateItemPlacement(
-                        animationSpec = spring(
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = null,
+                        fadeOutSpec = null,
+                        placementSpec = spring(
                             dampingRatio = Spring.DampingRatioMediumBouncy,
                             stiffness = Spring.StiffnessLow
                         )

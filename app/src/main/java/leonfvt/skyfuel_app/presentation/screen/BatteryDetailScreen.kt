@@ -26,7 +26,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.BatteryUnknown
+import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -68,6 +68,11 @@ import leonfvt.skyfuel_app.presentation.component.BatteryHistoryList
 import leonfvt.skyfuel_app.presentation.component.BatteryQrCodeDialog
 import leonfvt.skyfuel_app.presentation.component.ShareBatteryQrCodeDialog
 import leonfvt.skyfuel_app.presentation.component.BatteryDetailShimmer
+import leonfvt.skyfuel_app.presentation.component.BatteryPhotoComponent
+import leonfvt.skyfuel_app.presentation.component.CategoriesSection
+import leonfvt.skyfuel_app.presentation.component.CategorySelectorDialog
+import leonfvt.skyfuel_app.presentation.component.ReminderDialog
+import leonfvt.skyfuel_app.presentation.component.RemindersSection
 import leonfvt.skyfuel_app.util.QrCodeUtils
 import leonfvt.skyfuel_app.util.rememberHapticFeedback
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailEvent
@@ -165,6 +170,29 @@ fun BatteryDetailScreen(
         )
     }
     
+    // Dialog de sélection de catégories
+    if (state.showCategorySelector) {
+        CategorySelectorDialog(
+            allCategories = state.allCategories,
+            selectedCategoryIds = state.batteryCategories.map { it.id },
+            onDismiss = { onEvent(BatteryDetailEvent.HideCategorySelector) },
+            onConfirm = { categoryIds ->
+                onEvent(BatteryDetailEvent.UpdateCategories(categoryIds))
+            }
+        )
+    }
+
+    // Dialog de rappel
+    if (state.showReminderDialog) {
+        ReminderDialog(
+            editingReminder = state.editingReminder,
+            onDismiss = { onEvent(BatteryDetailEvent.HideReminderDialog) },
+            onSave = { title, hour, minute, days, type, notes ->
+                onEvent(BatteryDetailEvent.SaveReminder(title, hour, minute, days, type, notes))
+            }
+        )
+    }
+
     // Affichage de la boîte de dialogue de partage complet
     if (showShareDialog && state.battery != null) {
         ShareBatteryQrCodeDialog(
@@ -310,6 +338,27 @@ fun BatteryDetailScreen(
                                 onNavigateToHistory(batteryId)
                             }
                         },
+                        onEditCategories = {
+                            onEvent(BatteryDetailEvent.ShowCategorySelector)
+                        },
+                        onAddReminder = {
+                            onEvent(BatteryDetailEvent.ShowAddReminder)
+                        },
+                        onEditReminder = { reminder ->
+                            onEvent(BatteryDetailEvent.ShowEditReminder(reminder))
+                        },
+                        onToggleReminder = { reminder ->
+                            onEvent(BatteryDetailEvent.ToggleReminder(reminder))
+                        },
+                        onDeleteReminder = { reminder ->
+                            onEvent(BatteryDetailEvent.DeleteReminder(reminder))
+                        },
+                        onPhotoSelected = { path ->
+                            onEvent(BatteryDetailEvent.UpdatePhoto(path))
+                        },
+                        onPhotoRemoved = {
+                            onEvent(BatteryDetailEvent.RemovePhoto)
+                        },
                         modifier = Modifier
                             .fillMaxSize()
                             .padding(paddingValues)
@@ -398,7 +447,7 @@ fun NotFoundContent(modifier: Modifier = Modifier) {
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.BatteryUnknown,
+                imageVector = Icons.AutoMirrored.Filled.BatteryUnknown,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onTertiaryContainer,
                 modifier = Modifier.size(72.dp)
@@ -436,18 +485,33 @@ fun DetailContent(
     onAddNote: (String) -> Unit,
     onMaintenance: () -> Unit,
     onViewFullHistory: () -> Unit = {},
+    onEditCategories: () -> Unit = {},
+    onAddReminder: () -> Unit = {},
+    onEditReminder: (leonfvt.skyfuel_app.domain.model.ChargeReminder) -> Unit = {},
+    onToggleReminder: (leonfvt.skyfuel_app.domain.model.ChargeReminder) -> Unit = {},
+    onDeleteReminder: (leonfvt.skyfuel_app.domain.model.ChargeReminder) -> Unit = {},
+    onPhotoSelected: (String) -> Unit = {},
+    onPhotoRemoved: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val battery = state.battery ?: return
-    
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // En-tête avec détails de la batterie
         BatteryDetailHeader(battery = battery)
-        
-        // Section des actions (à moderniser séparément)
+
+        // Photo de la batterie
+        BatteryPhotoComponent(
+            photoPath = battery.photoPath,
+            onPhotoSelected = onPhotoSelected,
+            onPhotoRemoved = onPhotoRemoved,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // Section des actions
         BatteryActionsCard(
             currentStatus = battery.status,
             onStatusChange = onStatusChange,
@@ -455,7 +519,24 @@ fun DetailContent(
             onAddNote = onAddNote,
             onMaintenance = onMaintenance
         )
-        
+
+        // Section catégories
+        CategoriesSection(
+            batteryCategories = state.batteryCategories,
+            onEditCategories = onEditCategories,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
+        // Section rappels
+        RemindersSection(
+            reminders = state.reminders,
+            onAddReminder = onAddReminder,
+            onEditReminder = onEditReminder,
+            onToggleReminder = onToggleReminder,
+            onDeleteReminder = onDeleteReminder,
+            modifier = Modifier.padding(horizontal = 16.dp)
+        )
+
         // Section d'historique
         Row(
             modifier = Modifier

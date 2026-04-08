@@ -176,7 +176,7 @@ fun DashboardStats(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Cycles moyen: ${String.format("%.1f", statistics.averageCycleCount)}",
+                            text = "Cycles moyen: ${String.format(java.util.Locale.getDefault(), "%.1f", statistics.averageCycleCount)}",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         

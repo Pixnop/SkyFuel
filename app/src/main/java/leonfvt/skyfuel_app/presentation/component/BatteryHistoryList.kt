@@ -158,8 +158,10 @@ fun BatteryHistoryList(
                                     entry = entry,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .animateItemPlacement(
-                                            animationSpec = spring(
+                                        .animateItem(
+                                            fadeInSpec = null,
+                                            fadeOutSpec = null,
+                                            placementSpec = spring(
                                                 dampingRatio = Spring.DampingRatioMediumBouncy,
                                                 stiffness = Spring.StiffnessLow
                                             )
