@@ -14,9 +14,12 @@ import leonfvt.skyfuel_app.data.local.dao.BatteryDao
 import leonfvt.skyfuel_app.data.local.dao.ChargeReminderDao
 import leonfvt.skyfuel_app.data.local.entity.ChargeReminderEntity
 import leonfvt.skyfuel_app.data.repository.CategoryRepository
+import kotlinx.coroutines.flow.first
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.ChargeReminder
 import leonfvt.skyfuel_app.domain.model.ReminderType
+import leonfvt.skyfuel_app.domain.repository.BatteryRepository
+import leonfvt.skyfuel_app.domain.service.BatteryPredictionService
 import leonfvt.skyfuel_app.domain.usecase.AddBatteryNoteUseCase
 import leonfvt.skyfuel_app.domain.usecase.DeleteBatteryUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryDetailUseCase
@@ -49,6 +52,8 @@ class BatteryDetailViewModel @Inject constructor(
     private val categoryRepository: CategoryRepository,
     private val reminderDao: ChargeReminderDao,
     private val batteryDao: BatteryDao,
+    private val batteryRepository: BatteryRepository,
+    private val predictionService: BatteryPredictionService,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -74,6 +79,7 @@ class BatteryDetailViewModel @Inject constructor(
         loadBatteryHistory()
         loadCategories()
         loadReminders()
+        loadPrediction()
     }
 
     /**
@@ -150,6 +156,22 @@ class BatteryDetailViewModel @Inject constructor(
                 loadBatteryDetail()
             } catch (e: Exception) {
                 _state.update { it.copy(error = "Erreur lors de la mise à jour de la photo") }
+            }
+        }
+    }
+
+    // ========== Analytics / Prédiction ==========
+
+    private fun loadPrediction() {
+        viewModelScope.launch {
+            try {
+                val battery = getBatteryDetailUseCase(batteryId) ?: return@launch
+                val history = batteryRepository.getBatteryHistory(batteryId).first()
+                val prediction = predictionService.predictBatteryLifespan(battery, history)
+                val voltageTrends = predictionService.getVoltageTrends(history)
+                _state.update { it.copy(prediction = prediction, voltageTrends = voltageTrends) }
+            } catch (e: Exception) {
+                ErrorHandler.logError(e, "Erreur lors du calcul de la prédiction pour $batteryId")
             }
         }
     }

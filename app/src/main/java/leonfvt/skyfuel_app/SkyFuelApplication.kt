@@ -5,8 +5,12 @@ import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import com.jakewharton.threetenabp.AndroidThreeTen
 import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import leonfvt.skyfuel_app.data.sync.SyncManager
 import leonfvt.skyfuel_app.util.NotificationHelper
+import leonfvt.skyfuel_app.util.TestDataSeeder
 import leonfvt.skyfuel_app.worker.BatteryAlertWorker
 import leonfvt.skyfuel_app.worker.ReminderWorker
 import timber.log.Timber
@@ -27,6 +31,9 @@ class SkyFuelApplication : Application(), Configuration.Provider {
     @Inject
     lateinit var syncManager: SyncManager
 
+    @Inject
+    lateinit var testDataSeeder: TestDataSeeder
+
     override fun onCreate() {
         super.onCreate()
         initializeTimber()
@@ -34,6 +41,22 @@ class SkyFuelApplication : Application(), Configuration.Provider {
         initializeNotifications()
         scheduleBatteryAlertWorker()
         initializeSyncManager()
+        seedTestData()
+    }
+
+    /**
+     * Peuple la base avec des données de test en mode DEBUG
+     */
+    private fun seedTestData() {
+        if (BuildConfig.DEBUG) {
+            CoroutineScope(Dispatchers.IO).launch {
+                try {
+                    testDataSeeder.seedIfEmpty()
+                } catch (e: Exception) {
+                    Timber.e(e, "Erreur lors du seeding des données de test")
+                }
+            }
+        }
     }
 
     /**

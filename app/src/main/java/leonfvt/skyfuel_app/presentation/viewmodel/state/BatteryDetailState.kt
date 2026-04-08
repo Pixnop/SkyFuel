@@ -7,6 +7,8 @@ import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.Category
 import leonfvt.skyfuel_app.domain.model.ChargeReminder
 import leonfvt.skyfuel_app.domain.model.ReminderType
+import leonfvt.skyfuel_app.domain.service.BatteryPrediction
+import leonfvt.skyfuel_app.domain.service.VoltageTrend
 import java.time.DayOfWeek
 
 /**
@@ -28,7 +30,10 @@ data class BatteryDetailState(
     // Rappels
     val reminders: List<ChargeReminder> = emptyList(),
     val showReminderDialog: Boolean = false,
-    val editingReminder: ChargeReminder? = null
+    val editingReminder: ChargeReminder? = null,
+    // Analytics
+    val prediction: BatteryPrediction? = null,
+    val voltageTrends: List<VoltageTrend> = emptyList()
 ) {
     /**
      * Indique si une opération est en cours (chargement initial ou action)

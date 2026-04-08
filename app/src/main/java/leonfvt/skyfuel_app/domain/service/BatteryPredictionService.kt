@@ -19,6 +19,16 @@ data class PredictionPoint(
 )
 
 /**
+ * Point de données pour la courbe de capacité
+ */
+data class CapacityPoint(
+    val cycleNumber: Int,
+    val capacityMah: Int,
+    val capacityPercent: Float,
+    val isPredicted: Boolean = false
+)
+
+/**
  * Résultat complet de prédiction pour une batterie
  */
 data class BatteryPrediction(
@@ -28,7 +38,13 @@ data class BatteryPrediction(
     val remainingCycles: Int,
     val cyclesPerMonth: Float,
     val healthCurve: List<PredictionPoint>,
-    val confidencePercent: Int
+    val confidencePercent: Int,
+    // Capacité réelle
+    val estimatedCapacityMah: Int,
+    val capacityRetentionPercent: Float,
+    val capacityCurve: List<CapacityPoint>,
+    // Résistance interne estimée
+    val internalResistanceIncrease: Float // % d'augmentation vs neuf
 )
 
 /**
@@ -122,6 +138,14 @@ class BatteryPredictionService @Inject constructor() {
         // Confiance basée sur la quantité de données
         val confidencePercent = calculateConfidence(battery, history)
 
+        // Capacité réelle estimée
+        val capacityRetention = estimateCapacityRetention(battery.type, battery.cycleCount, battery.getAgeInDays())
+        val estimatedCapacityMah = (battery.capacity * capacityRetention / 100f).toInt()
+        val capacityCurve = generateCapacityCurve(battery, cyclesPerDay, maxCycles)
+
+        // Résistance interne
+        val irIncrease = estimateResistanceIncrease(battery.type, battery.cycleCount)
+
         return BatteryPrediction(
             battery = battery,
             estimatedEndOfLife = estimatedEndOfLife,
@@ -129,8 +153,92 @@ class BatteryPredictionService @Inject constructor() {
             remainingCycles = remainingCycles,
             cyclesPerMonth = cyclesPerMonth,
             healthCurve = healthCurve,
-            confidencePercent = confidencePercent
+            confidencePercent = confidencePercent,
+            estimatedCapacityMah = estimatedCapacityMah,
+            capacityRetentionPercent = capacityRetention,
+            capacityCurve = capacityCurve,
+            internalResistanceIncrease = irIncrease
         )
+    }
+
+    /**
+     * Estime le % de capacité restante basé sur le type, les cycles et l'âge.
+     * Modèle semi-empirique inspiré des données fabricants.
+     *
+     * LiPo: perd ~0.08% par cycle + vieillissement calendaire ~3%/an
+     * Li-Ion: perd ~0.05% par cycle + ~2%/an
+     * NiMH: perd ~0.03% par cycle + ~1%/an (effet mémoire possible)
+     * LiFe: perd ~0.02% par cycle + ~1%/an (très stable)
+     */
+    private fun estimateCapacityRetention(type: BatteryType, cycles: Int, ageDays: Long): Float {
+        val cycleLoss = when (type) {
+            BatteryType.LIPO -> cycles * 0.08f
+            BatteryType.LI_ION -> cycles * 0.05f
+            BatteryType.NIMH -> cycles * 0.03f
+            BatteryType.LIFE -> cycles * 0.02f
+            BatteryType.OTHER -> cycles * 0.06f
+        }
+        val ageLossPerYear = when (type) {
+            BatteryType.LIPO -> 3f
+            BatteryType.LI_ION -> 2f
+            BatteryType.NIMH -> 1f
+            BatteryType.LIFE -> 1f
+            BatteryType.OTHER -> 2.5f
+        }
+        val ageLoss = (ageDays / 365f) * ageLossPerYear
+        return (100f - cycleLoss - ageLoss).coerceIn(0f, 100f)
+    }
+
+    /**
+     * Génère la courbe de capacité en mAh au fil des cycles (passé + projection)
+     */
+    private fun generateCapacityCurve(
+        battery: Battery,
+        cyclesPerDay: Float,
+        maxCycles: Int
+    ): List<CapacityPoint> {
+        val points = mutableListOf<CapacityPoint>()
+        val nominalCapacity = battery.capacity
+
+        // Points passés : un point tous les 10% des cycles actuels
+        val step = (battery.cycleCount / 15).coerceAtLeast(1)
+        for (c in 0..battery.cycleCount step step) {
+            val daysAtCycle = if (cyclesPerDay > 0) (c / cyclesPerDay).toLong() else 0L
+            val retention = estimateCapacityRetention(battery.type, c, daysAtCycle)
+            points.add(CapacityPoint(c, (nominalCapacity * retention / 100f).toInt(), retention, isPredicted = false))
+        }
+        // Point actuel exact
+        val currentRetention = estimateCapacityRetention(battery.type, battery.cycleCount, battery.getAgeInDays())
+        points.add(CapacityPoint(battery.cycleCount, (nominalCapacity * currentRetention / 100f).toInt(), currentRetention, isPredicted = false))
+
+        // Points futurs
+        val futureStep = ((maxCycles - battery.cycleCount) / 10).coerceAtLeast(1)
+        for (c in (battery.cycleCount + futureStep)..maxCycles step futureStep) {
+            val daysAtCycle = if (cyclesPerDay > 0) (c / cyclesPerDay).toLong() else battery.getAgeInDays() + 365
+            val retention = estimateCapacityRetention(battery.type, c, daysAtCycle)
+            if (retention < 50f) { // On arrête quand la batterie est inutilisable (<50%)
+                points.add(CapacityPoint(c, (nominalCapacity * retention / 100f).toInt(), retention, isPredicted = true))
+                break
+            }
+            points.add(CapacityPoint(c, (nominalCapacity * retention / 100f).toInt(), retention, isPredicted = true))
+        }
+
+        return points
+    }
+
+    /**
+     * Estime l'augmentation de résistance interne en % vs neuf.
+     * La résistance augmente avec les cycles, rendant la batterie moins performante.
+     */
+    private fun estimateResistanceIncrease(type: BatteryType, cycles: Int): Float {
+        val increasePerCycle = when (type) {
+            BatteryType.LIPO -> 0.15f  // +15% pour 100 cycles
+            BatteryType.LI_ION -> 0.10f
+            BatteryType.NIMH -> 0.05f
+            BatteryType.LIFE -> 0.03f
+            BatteryType.OTHER -> 0.12f
+        }
+        return (cycles * increasePerCycle / 100f * 100f).coerceAtMost(200f) // Max +200%
     }
 
     /**

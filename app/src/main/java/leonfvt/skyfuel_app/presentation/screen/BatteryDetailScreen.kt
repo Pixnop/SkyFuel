@@ -67,6 +67,7 @@ import leonfvt.skyfuel_app.presentation.component.BatteryDetailHeader
 import leonfvt.skyfuel_app.presentation.component.BatteryHistoryList
 import leonfvt.skyfuel_app.presentation.component.BatteryQrCodeDialog
 import leonfvt.skyfuel_app.presentation.component.ShareBatteryQrCodeDialog
+import leonfvt.skyfuel_app.presentation.component.BatteryAnalyticsSection
 import leonfvt.skyfuel_app.presentation.component.BatteryDetailShimmer
 import leonfvt.skyfuel_app.presentation.component.BatteryPhotoComponent
 import leonfvt.skyfuel_app.presentation.component.CategoriesSection
@@ -519,6 +520,14 @@ fun DetailContent(
             onAddNote = onAddNote,
             onMaintenance = onMaintenance
         )
+
+        // Section Analytics (capacité réelle, courbe, prédictions)
+        state.prediction?.let { prediction ->
+            BatteryAnalyticsSection(
+                prediction = prediction,
+                voltageTrends = state.voltageTrends
+            )
+        }
 
         // Section catégories
         CategoriesSection(
