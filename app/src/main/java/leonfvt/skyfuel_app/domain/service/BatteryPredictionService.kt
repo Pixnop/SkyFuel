@@ -163,30 +163,46 @@ class BatteryPredictionService @Inject constructor() {
 
     /**
      * Estime le % de capacité restante basé sur le type, les cycles et l'âge.
-     * Modèle semi-empirique inspiré des données fabricants.
      *
-     * LiPo: perd ~0.08% par cycle + vieillissement calendaire ~3%/an
-     * Li-Ion: perd ~0.05% par cycle + ~2%/an
-     * NiMH: perd ~0.03% par cycle + ~1%/an (effet mémoire possible)
-     * LiFe: perd ~0.02% par cycle + ~1%/an (très stable)
+     * Utilise un modèle NON-LINÉAIRE réaliste :
+     * - Phase 1 (0 à ~70% des cycles max) : dégradation lente, quasi-linéaire
+     * - Phase 2 (70-100% des cycles max) : dégradation accélérée ("knee point")
+     *
+     * Formule : retention = 100 * exp(-k * (cycles/maxCycles)^n)
+     * où k et n varient par type de batterie pour modéliser le "coude"
+     *
+     * + vieillissement calendaire (non-linéaire aussi, sqrt du temps)
      */
     private fun estimateCapacityRetention(type: BatteryType, cycles: Int, ageDays: Long): Float {
-        val cycleLoss = when (type) {
-            BatteryType.LIPO -> cycles * 0.08f
-            BatteryType.LI_ION -> cycles * 0.05f
-            BatteryType.NIMH -> cycles * 0.03f
-            BatteryType.LIFE -> cycles * 0.02f
-            BatteryType.OTHER -> cycles * 0.06f
+        val maxCycles = getMaxCycles(type)
+        val cycleRatio = cycles.toFloat() / maxCycles
+
+        // Paramètres de la courbe de dégradation par type
+        // k = intensité de la dégradation, n = exposant (>1 = accélération en fin de vie)
+        val (k, n) = when (type) {
+            BatteryType.LIPO -> 0.7f to 2.2f    // Coude marqué, décroche vite après 70%
+            BatteryType.LI_ION -> 0.5f to 1.8f  // Plus progressif
+            BatteryType.NIMH -> 0.3f to 1.5f     // Dégradation douce
+            BatteryType.LIFE -> 0.2f to 1.3f     // Très stable, presque linéaire
+            BatteryType.OTHER -> 0.5f to 2.0f
         }
-        val ageLossPerYear = when (type) {
-            BatteryType.LIPO -> 3f
-            BatteryType.LI_ION -> 2f
-            BatteryType.NIMH -> 1f
-            BatteryType.LIFE -> 1f
-            BatteryType.OTHER -> 2.5f
+
+        // Dégradation par cycles (exponentielle avec accélération)
+        val cycleDegradation = kotlin.math.exp(-k * Math.pow(cycleRatio.toDouble(), n.toDouble())).toFloat()
+
+        // Vieillissement calendaire : sqrt du temps (ralentit avec l'âge)
+        // Perte de ~5-15% sur les 3 premières années selon le type
+        val calendarLossRate = when (type) {
+            BatteryType.LIPO -> 0.08f   // ~8% par sqrt(année)
+            BatteryType.LI_ION -> 0.05f
+            BatteryType.NIMH -> 0.03f
+            BatteryType.LIFE -> 0.02f
+            BatteryType.OTHER -> 0.06f
         }
-        val ageLoss = (ageDays / 365f) * ageLossPerYear
-        return (100f - cycleLoss - ageLoss).coerceIn(0f, 100f)
+        val yearsElapsed = ageDays / 365f
+        val calendarRetention = 1f - calendarLossRate * kotlin.math.sqrt(yearsElapsed.toDouble()).toFloat()
+
+        return (cycleDegradation * calendarRetention * 100f).coerceIn(0f, 100f)
     }
 
     /**
@@ -228,17 +244,22 @@ class BatteryPredictionService @Inject constructor() {
 
     /**
      * Estime l'augmentation de résistance interne en % vs neuf.
-     * La résistance augmente avec les cycles, rendant la batterie moins performante.
+     * La résistance augmente de façon quadratique avec les cycles
+     * (accélération en fin de vie, comme la capacité).
      */
     private fun estimateResistanceIncrease(type: BatteryType, cycles: Int): Float {
-        val increasePerCycle = when (type) {
-            BatteryType.LIPO -> 0.15f  // +15% pour 100 cycles
-            BatteryType.LI_ION -> 0.10f
-            BatteryType.NIMH -> 0.05f
-            BatteryType.LIFE -> 0.03f
-            BatteryType.OTHER -> 0.12f
+        val maxCycles = getMaxCycles(type)
+        val ratio = cycles.toFloat() / maxCycles
+
+        // Augmentation quadratique : lente au début, rapide en fin de vie
+        val maxIncrease = when (type) {
+            BatteryType.LIPO -> 80f    // +80% à fin de vie
+            BatteryType.LI_ION -> 60f
+            BatteryType.NIMH -> 40f
+            BatteryType.LIFE -> 25f
+            BatteryType.OTHER -> 70f
         }
-        return (cycles * increasePerCycle / 100f * 100f).coerceAtMost(200f) // Max +200%
+        return (maxIncrease * ratio * ratio).coerceAtMost(200f)
     }
 
     /**
@@ -289,24 +310,10 @@ class BatteryPredictionService @Inject constructor() {
     }
 
     /**
-     * Simule la santé à un moment donné
+     * Simule la santé à un moment donné (utilise le même modèle non-linéaire)
      */
     private fun simulateHealth(type: BatteryType, cycles: Int, daysElapsed: Float): Float {
-        val cycleImpact = when (type) {
-            BatteryType.LIPO -> cycles * 0.25f
-            BatteryType.LI_ION -> cycles * 0.15f
-            BatteryType.NIMH -> cycles * 0.1f
-            BatteryType.LIFE -> cycles * 0.05f
-            BatteryType.OTHER -> cycles * 0.2f
-        }
-        val ageImpact = when (type) {
-            BatteryType.LIPO -> (daysElapsed / 365f) * 10f
-            BatteryType.LI_ION -> (daysElapsed / 365f) * 7f
-            BatteryType.NIMH -> (daysElapsed / 365f) * 5f
-            BatteryType.LIFE -> (daysElapsed / 365f) * 4f
-            BatteryType.OTHER -> (daysElapsed / 365f) * 8f
-        }
-        return (100f - cycleImpact - ageImpact).coerceIn(0f, 100f)
+        return estimateCapacityRetention(type, cycles, daysElapsed.toLong())
     }
 
     /**
