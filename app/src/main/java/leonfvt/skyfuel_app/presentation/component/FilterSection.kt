@@ -6,15 +6,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -34,7 +34,7 @@ import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.presentation.theme.SkyFuelTheme
 
 /**
- * Section de filtrage des batteries par statut
+ * Section de filtrage en scroll horizontal compact (une seule ligne)
  */
 @Composable
 fun FilterSection(
@@ -44,66 +44,45 @@ fun FilterSection(
 ) {
     Row(
         modifier = modifier
-            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
             .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         FilterChip(
             text = "Toutes",
             selected = currentFilter == null,
             color = MaterialTheme.colorScheme.primary,
-            onClick = { onFilterSelected(null) },
-            modifier = Modifier.weight(1f)
+            onClick = { onFilterSelected(null) }
         )
-        
         FilterChip(
             text = "Chargées",
             selected = currentFilter == BatteryStatus.CHARGED,
-            color = Color(0xFF4CAF50), // Vert
-            onClick = { onFilterSelected(BatteryStatus.CHARGED) },
-            modifier = Modifier.weight(1f)
+            color = Color(0xFF4CAF50),
+            onClick = { onFilterSelected(BatteryStatus.CHARGED) }
         )
-        
         FilterChip(
             text = "Déchargées",
             selected = currentFilter == BatteryStatus.DISCHARGED,
-            color = Color(0xFFFFC107), // Jaune
-            onClick = { onFilterSelected(BatteryStatus.DISCHARGED) },
-            modifier = Modifier.weight(1f)
+            color = Color(0xFFFFC107),
+            onClick = { onFilterSelected(BatteryStatus.DISCHARGED) }
         )
-    }
-    
-    Spacer(modifier = Modifier.height(4.dp))
-    
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
         FilterChip(
             text = "Stockage",
             selected = currentFilter == BatteryStatus.STORAGE,
-            color = Color(0xFF2196F3), // Bleu
-            onClick = { onFilterSelected(BatteryStatus.STORAGE) },
-            modifier = Modifier.weight(1f)
+            color = Color(0xFF2196F3),
+            onClick = { onFilterSelected(BatteryStatus.STORAGE) }
         )
-        
         FilterChip(
             text = "Hors service",
             selected = currentFilter == BatteryStatus.OUT_OF_SERVICE,
-            color = Color(0xFFE91E63), // Rose
-            onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) },
-            modifier = Modifier.weight(1f)
+            color = Color(0xFFE91E63),
+            onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) }
         )
-        
-        // Espace vide pour équilibrer la dernière ligne
-        Spacer(modifier = Modifier.weight(1f))
     }
 }
 
 /**
- * Composant de filtre cliquable
+ * Composant de filtre cliquable compact
  */
 @Composable
 fun FilterChip(
@@ -113,64 +92,48 @@ fun FilterChip(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // Animations
     val backgroundColor by animateColorAsState(
-        targetValue = if (selected) color.copy(alpha = 0.1f) else Color.Transparent,
-        animationSpec = tween(300),
-        label = "Background color animation"
+        targetValue = if (selected) color.copy(alpha = 0.12f) else Color.Transparent,
+        animationSpec = tween(200),
+        label = "bg"
     )
-    
     val borderColor by animateColorAsState(
-        targetValue = if (selected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
-        animationSpec = tween(300),
-        label = "Border color animation"
+        targetValue = if (selected) color else MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+        animationSpec = tween(200),
+        label = "border"
     )
-    
     val textColor by animateColorAsState(
-        targetValue = if (selected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-        animationSpec = tween(300),
-        label = "Text color animation"
+        targetValue = if (selected) color else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+        animationSpec = tween(200),
+        label = "text"
     )
-    
     val checkScale by animateFloatAsState(
         targetValue = if (selected) 1f else 0f,
-        animationSpec = tween(150),
-        label = "Check mark scale animation"
+        animationSpec = tween(100),
+        label = "check"
     )
-    
+
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(20.dp))
             .background(backgroundColor)
-            .border(
-                width = 1.dp,
-                color = borderColor,
-                shape = RoundedCornerShape(16.dp)
-            )
+            .border(1.dp, borderColor, RoundedCornerShape(20.dp))
             .clickable(onClick = onClick)
-            .padding(vertical = 8.dp, horizontal = 4.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             if (selected) {
                 Icon(
-                    imageVector = Icons.Default.Check,
-                    contentDescription = null,
+                    Icons.Default.Check, null,
                     tint = color,
-                    modifier = Modifier.scale(checkScale).size(16.dp)
+                    modifier = Modifier
+                        .scale(checkScale)
+                        .size(14.dp)
                 )
-                
-                Spacer(modifier = Modifier.width(4.dp))
+                Spacer(Modifier.width(4.dp))
             }
-            
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelMedium,
-                color = textColor
-            )
+            Text(text, style = MaterialTheme.typography.labelSmall, color = textColor)
         }
     }
 }
@@ -179,9 +142,6 @@ fun FilterChip(
 @Composable
 fun FilterSectionPreview() {
     SkyFuelTheme {
-        FilterSection(
-            currentFilter = BatteryStatus.CHARGED,
-            onFilterSelected = {}
-        )
+        FilterSection(currentFilter = BatteryStatus.CHARGED, onFilterSelected = {})
     }
 }

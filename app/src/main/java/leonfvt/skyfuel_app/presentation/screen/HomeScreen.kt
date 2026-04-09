@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -82,10 +84,13 @@ import leonfvt.skyfuel_app.domain.model.BatteryStatistics
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.Category
 import leonfvt.skyfuel_app.domain.model.getComposeColor
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import leonfvt.skyfuel_app.presentation.component.AlertsSection
 import leonfvt.skyfuel_app.presentation.component.BatteryCard
+import leonfvt.skyfuel_app.presentation.component.BatteryGridCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
-import leonfvt.skyfuel_app.presentation.component.FilterSection
+import leonfvt.skyfuel_app.presentation.component.FilterChip
 import leonfvt.skyfuel_app.presentation.component.QrScannerDialog
 import leonfvt.skyfuel_app.presentation.component.SearchBar
 import leonfvt.skyfuel_app.presentation.component.SortSelector
@@ -630,7 +635,7 @@ fun EmptyFilterScreen(
 }
 
 /**
- * Écran principal avec contenu (modernisé)
+ * Écran principal avec contenu — grille compacte de batteries
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -654,144 +659,134 @@ fun ContentScreen(
     paddingValues: PaddingValues,
     lazyListState: androidx.compose.foundation.lazy.LazyListState
 ) {
-    // Statistiques calculées
     val stats = BatteryStatistics(
         totalCount = batteries.size,
         chargedCount = batteries.count { it.status == BatteryStatus.CHARGED },
         dischargedCount = batteries.count { it.status == BatteryStatus.DISCHARGED },
         storageCount = batteries.count { it.status == BatteryStatus.STORAGE },
         outOfServiceCount = batteries.count { it.status == BatteryStatus.OUT_OF_SERVICE },
-        averageCycleCount = batteries.map { it.cycleCount }.average().toFloat()
+        averageCycleCount = if (batteries.isNotEmpty()) batteries.map { it.cycleCount }.average().toFloat() else 0f
     )
-    
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(paddingValues)
     ) {
-        // Liste des batteries avec en-têtes
+        // En-tête fixe : recherche + filtres compacts
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(MaterialTheme.colorScheme.surface)
+        ) {
+            // Recherche + tri
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                SearchBar(
+                    query = searchQuery,
+                    onQueryChange = onSearchQueryChange,
+                    onSearch = {},
+                    onClear = onClearSearch,
+                    modifier = Modifier.weight(1f)
+                )
+                SortSelector(
+                    currentSort = sortOption,
+                    onSortSelected = onSortSelected
+                )
+            }
+
+            // Filtres statut + catégories en scroll horizontal unifié
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                // Filtres statut
+                FilterChip(text = "Toutes", selected = filterStatus == null && filterCategoryId == null, color = MaterialTheme.colorScheme.primary, onClick = { onFilterSelected(null); onFilterByCategory(null) })
+                FilterChip(text = "Chargées", selected = filterStatus == BatteryStatus.CHARGED, color = Color(0xFF4CAF50), onClick = { onFilterSelected(BatteryStatus.CHARGED) })
+                FilterChip(text = "Déchargées", selected = filterStatus == BatteryStatus.DISCHARGED, color = Color(0xFFFFC107), onClick = { onFilterSelected(BatteryStatus.DISCHARGED) })
+                FilterChip(text = "Stockage", selected = filterStatus == BatteryStatus.STORAGE, color = Color(0xFF2196F3), onClick = { onFilterSelected(BatteryStatus.STORAGE) })
+                FilterChip(text = "H.S.", selected = filterStatus == BatteryStatus.OUT_OF_SERVICE, color = Color(0xFFE91E63), onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) })
+
+                // Séparateur visuel
+                if (categories.isNotEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .height(24.dp)
+                            .width(1.dp)
+                            .background(MaterialTheme.colorScheme.outlineVariant)
+                    )
+                    // Filtres catégories
+                    categories.forEach { category ->
+                        FilterChip(
+                            text = category.name,
+                            selected = filterCategoryId == category.id,
+                            color = category.getComposeColor(),
+                            onClick = { onFilterByCategory(if (filterCategoryId == category.id) null else category.id) }
+                        )
+                    }
+                }
+            }
+        }
+
+        // Contenu scrollable
         LazyColumn(
             state = lazyListState,
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            // Barre de recherche (animée et épinglée)
-            stickyHeader {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.95f))
-                        .padding(bottom = 8.dp)
-                ) {
-                    // Barre de recherche avec bouton de tri
-                    androidx.compose.foundation.layout.Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SearchBar(
-                            query = searchQuery,
-                            onQueryChange = onSearchQueryChange,
-                            onSearch = {},
-                            onClear = onClearSearch,
-                            modifier = Modifier.weight(1f)
-                        )
-
-                        // Sélecteur de tri
-                        SortSelector(
-                            currentSort = sortOption,
-                            onSortSelected = onSortSelected
-                        )
-                    }
-
-                    // Filtres par statut
-                    FilterSection(
-                        currentFilter = filterStatus,
-                        onFilterSelected = onFilterSelected
-                    )
-
-                    // Filtres par catégorie
-                    if (categories.isNotEmpty()) {
-                        androidx.compose.foundation.layout.Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            androidx.compose.material3.FilterChip(
-                                selected = filterCategoryId == null,
-                                onClick = { onFilterByCategory(null) },
-                                label = { Text("Toutes", style = MaterialTheme.typography.labelSmall) }
-                            )
-                            categories.forEach { category ->
-                                androidx.compose.material3.FilterChip(
-                                    selected = filterCategoryId == category.id,
-                                    onClick = {
-                                        onFilterByCategory(
-                                            if (filterCategoryId == category.id) null else category.id
-                                        )
-                                    },
-                                    label = { Text(category.name, style = MaterialTheme.typography.labelSmall) },
-                                    leadingIcon = {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(8.dp)
-                                                .clip(CircleShape)
-                                                .background(category.getComposeColor())
-                                        )
-                                    },
-                                    colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = category.getComposeColor().copy(alpha = 0.15f)
-                                    )
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            
-            // Section d'alertes (si présentes)
+            // Alertes
             if (alerts.isNotEmpty()) {
                 item {
                     AlertsSection(
                         alerts = alerts,
                         onAlertClick = onAlertClick,
                         onDismissAlert = onDismissAlert,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
                 }
             }
-            
-            // Statistiques en haut de la liste
+
+            // Stats compacts
             item {
                 DashboardStats(
                     statistics = stats,
                     onViewFullStats = onViewStats
                 )
             }
-            
-            // Liste des batteries avec animations
+
+            // Grille de batteries (2 colonnes)
+            val chunked = batteries.chunked(2)
             items(
-                items = batteries,
-                key = { it.id }
-            ) { battery ->
-                BatteryCard(
-                    battery = battery,
-                    onClick = { onBatteryClick(battery) },
-                    modifier = Modifier.animateItem(
-                        fadeInSpec = null,
-                        fadeOutSpec = null,
-                        placementSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessLow
+                count = chunked.size,
+                key = { index -> chunked[index].first().id }
+            ) { index ->
+                val row = chunked[index]
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    row.forEach { battery ->
+                        BatteryGridCard(
+                            battery = battery,
+                            onClick = { onBatteryClick(battery) },
+                            modifier = Modifier.weight(1f)
                         )
-                    )
-                )
+                    }
+                    // Si nombre impair, remplir l'espace
+                    if (row.size == 1) {
+                        Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
             }
-            
-            // Espace en bas de la liste
-            item {
-                Spacer(modifier = Modifier.height(100.dp))
-            }
+
+            item { Spacer(modifier = Modifier.height(100.dp)) }
         }
     }
 }

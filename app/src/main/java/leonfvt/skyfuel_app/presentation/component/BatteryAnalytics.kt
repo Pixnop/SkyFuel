@@ -1,5 +1,8 @@
 package leonfvt.skyfuel_app.presentation.component
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearEasing
@@ -19,9 +22,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.clickable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Battery4Bar
 import androidx.compose.material.icons.filled.ElectricalServices
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Card
@@ -34,8 +39,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,36 +83,96 @@ fun BatteryAnalyticsSection(
     voltageTrends: List<VoltageTrend>,
     modifier: Modifier = Modifier
 ) {
+    var expanded by remember { mutableStateOf(false) }
+    val rotationAngle by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(300),
+        label = "expand_rotation"
+    )
+
     Column(
         modifier = modifier,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Titre de la section
-        Text(
-            text = "Santé & Prédictions",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
+        // Titre cliquable pour expand/collapse
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded }
+                .padding(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Santé & Prédictions",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Icon(
+                Icons.Default.ExpandMore,
+                contentDescription = if (expanded) "Réduire" else "Développer",
+                modifier = Modifier
+                    .size(24.dp)
+                    .graphicsLayer { rotationZ = rotationAngle },
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
-        // 1. Capacité réelle estimée
+        // 1. Capacité réelle estimée — toujours visible
         CapacityCard(prediction)
 
-        // 2. Courbe de capacité au fil des cycles
-        CapacityDegradationChart(prediction)
-
-        // 3. Facteurs de stress (si détectés)
+        // 3. Facteurs de stress — toujours visible si détectés (important)
         if (prediction.stressFactors.hasWarnings) {
             StressFactorsCard(prediction.stressFactors)
         }
 
-        // 4. Prédiction de durée de vie
-        LifespanCard(prediction)
+        // Sections dépliables
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically(),
+            exit = shrinkVertically()
+        ) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                // 2. Courbe de capacité
+                CapacityDegradationChart(prediction)
 
-        // 5. Tendance de tension (si des données existent)
-        if (voltageTrends.size >= 2) {
-            BatteryVoltageTrendCard(voltageTrends)
+                // 4. Prédiction de durée de vie
+                LifespanCard(prediction)
+
+                // 5. Tendance de tension
+                if (voltageTrends.size >= 2) {
+                    BatteryVoltageTrendCard(voltageTrends)
+                }
+            }
         }
+
+        if (!expanded) {
+            // Résumé compact quand replié
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .clickable { expanded = true },
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                val remainText = when {
+                    prediction.remainingDays > 365 -> "${prediction.remainingDays / 365} ans"
+                    prediction.remainingDays > 30 -> "${prediction.remainingDays / 30} mois"
+                    else -> "${prediction.remainingDays}j"
+                }
+                CompactMetric("Restant", remainText, HealthGood)
+                CompactMetric("Cycles", "${prediction.remainingCycles}", MaterialTheme.colorScheme.primary)
+                CompactMetric("Rythme", "${String.format(java.util.Locale.getDefault(), "%.1f", prediction.cyclesPerMonth)}/m", MaterialTheme.colorScheme.tertiary)
+            }
+        }
+    }
+}
+
+@Composable
+private fun CompactMetric(label: String, value: String, color: Color) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

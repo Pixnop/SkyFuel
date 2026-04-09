@@ -504,13 +504,15 @@ fun DetailContent(
         // En-tête avec détails de la batterie
         BatteryDetailHeader(battery = battery)
 
-        // Photo de la batterie
-        BatteryPhotoComponent(
-            photoPath = battery.photoPath,
-            onPhotoSelected = onPhotoSelected,
-            onPhotoRemoved = onPhotoRemoved,
-            modifier = Modifier.padding(horizontal = 16.dp)
-        )
+        // Photo de la batterie (masquée si aucune photo, bouton discret pour en ajouter)
+        if (battery.photoPath != null) {
+            BatteryPhotoComponent(
+                photoPath = battery.photoPath,
+                onPhotoSelected = onPhotoSelected,
+                onPhotoRemoved = onPhotoRemoved,
+                modifier = Modifier.padding(horizontal = 16.dp)
+            )
+        }
 
         // Section des actions
         BatteryActionsCard(
