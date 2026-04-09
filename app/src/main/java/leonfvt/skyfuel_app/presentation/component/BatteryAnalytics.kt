@@ -52,8 +52,11 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Warning
 import leonfvt.skyfuel_app.domain.service.BatteryPrediction
 import leonfvt.skyfuel_app.domain.service.CapacityPoint
+import leonfvt.skyfuel_app.domain.service.StressFactors
 import leonfvt.skyfuel_app.domain.service.VoltageTrend
 import leonfvt.skyfuel_app.presentation.theme.HealthCritical
 import leonfvt.skyfuel_app.presentation.theme.HealthExcellent
@@ -91,10 +94,15 @@ fun BatteryAnalyticsSection(
         // 2. Courbe de capacité au fil des cycles
         CapacityDegradationChart(prediction)
 
-        // 3. Prédiction de durée de vie
+        // 3. Facteurs de stress (si détectés)
+        if (prediction.stressFactors.hasWarnings) {
+            StressFactorsCard(prediction.stressFactors)
+        }
+
+        // 4. Prédiction de durée de vie
         LifespanCard(prediction)
 
-        // 4. Tendance de tension (si des données existent)
+        // 5. Tendance de tension (si des données existent)
         if (voltageTrends.size >= 2) {
             BatteryVoltageTrendCard(voltageTrends)
         }
@@ -405,7 +413,132 @@ private fun CapacityDegradationChart(prediction: BatteryPrediction) {
 }
 
 // ============================================================
-// 3. CARTE DURÉE DE VIE
+// 3. FACTEURS DE STRESS
+// ============================================================
+
+@Composable
+private fun StressFactorsCard(stress: StressFactors) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = HealthPoor.copy(alpha = 0.08f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Warning, null, tint = HealthPoor, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Facteurs de dégradation détectés", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = HealthPoor)
+            }
+
+            Spacer(Modifier.height(12.dp))
+
+            if (stress.fullChargeDays > 1) {
+                StressRow(
+                    icon = Icons.Default.BatteryChargingFull,
+                    label = "Stockage chargée trop long",
+                    detail = "${String.format(Locale.getDefault(), "%.0f", stress.fullChargeDays)} jours cumulés à 100%",
+                    penalty = stress.fullChargeStressPenalty,
+                    color = if (stress.fullChargeDays > 14) HealthCritical else HealthPoor
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (stress.deepDischargeDays > 1) {
+                StressRow(
+                    icon = Icons.Default.Battery4Bar,
+                    label = "Décharge prolongée",
+                    detail = "${String.format(Locale.getDefault(), "%.0f", stress.deepDischargeDays)} jours cumulés à vide",
+                    penalty = stress.deepDischargeStressPenalty,
+                    color = if (stress.deepDischargeDays > 7) HealthCritical else HealthPoor
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            if (stress.highFrequencyPeriods > 2) {
+                StressRow(
+                    icon = Icons.Default.Speed,
+                    label = "Usage intensif",
+                    detail = "${stress.highFrequencyPeriods} jours à >2 cycles/jour",
+                    penalty = stress.highFrequencyPenalty,
+                    color = HealthModerate
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+
+            // Barre résumé pénalité totale
+            Spacer(Modifier.height(4.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("Impact total sur la capacité", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "-${String.format(Locale.getDefault(), "%.1f", stress.totalStressPenalty)}%",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = HealthCritical
+                )
+            }
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp))
+                    .background(MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(stress.totalStressPenalty / 30f) // Max 30%
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(HealthCritical)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StressRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    detail: String,
+    penalty: Float,
+    color: Color
+) {
+    Row(
+        Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+            Text(detail, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Text(
+            "-${String.format(Locale.getDefault(), "%.1f", penalty)}%",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
+    }
+}
+
+// ============================================================
+// 4. CARTE DURÉE DE VIE
 // ============================================================
 
 @Composable
