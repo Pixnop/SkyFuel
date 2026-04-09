@@ -143,6 +143,9 @@ fun BatteryAnalyticsSection(
                 if (voltageTrends.size >= 2) {
                     BatteryVoltageTrendCard(voltageTrends)
                 }
+
+                // 6. Méthodologie scientifique
+                MethodologyCard()
             }
         }
 
@@ -782,5 +785,73 @@ private fun BatteryVoltageTrendCard(voltages: List<VoltageTrend>) {
                 }
             }
         }
+    }
+}
+
+// ============================================================
+// MÉTHODOLOGIE SCIENTIFIQUE
+// ============================================================
+
+@Composable
+private fun MethodologyCard() {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Text(
+                text = "Modeles scientifiques utilises",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            MethodologyItem(
+                title = "Degradation par cycles",
+                detail = "Loi puissance Q = B x N^z (Schmalstieg et al., J. Power Sources, 2014)"
+            )
+            MethodologyItem(
+                title = "Vieillissement calendaire",
+                detail = "Cinetique SEI : Q = A x \u221At (Keil et al., 2016)"
+            )
+            MethodologyItem(
+                title = "Effet du stockage charge",
+                detail = "Facteur SoC = 1 + 2.13 x (SoC - 0.5) (Ecker et al., J. Power Sources, 2014)"
+            )
+            MethodologyItem(
+                title = "Decharge profonde",
+                detail = "Dissolution Cu < 2.5V (Spotnitz, J. Power Sources, 2003)"
+            )
+            MethodologyItem(
+                title = "Resistance interne",
+                detail = "Croissance SEI : R ~ \u221AN (Safari & Delacourt, J. Electrochem. Soc., 2011)"
+            )
+            MethodologyItem(
+                title = "Temperature",
+                detail = "Correction Arrhenius : exp(Ea/R x (1/T_ref - 1/T))"
+            )
+        }
+    }
+}
+
+@Composable
+private fun MethodologyItem(title: String, detail: String) {
+    Column(modifier = Modifier.padding(vertical = 2.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }

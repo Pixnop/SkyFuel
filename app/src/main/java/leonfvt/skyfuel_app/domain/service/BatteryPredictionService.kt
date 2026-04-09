@@ -102,21 +102,120 @@ data class WeeklyActivity(
 
 /**
  * Service de prédiction de durée de vie des batteries.
- * Utilise les données historiques pour estimer la fin de vie et projeter la santé.
+ *
+ * Modèles scientifiques utilisés :
+ * - Dégradation par cycles : Q_loss = B × N^z (Xu et al., Wang et al., Schmalstieg et al. 2014)
+ *   Loi puissance calibrée par chimie, avec correction Arrhenius pour la température.
+ *
+ * - Vieillissement calendaire : Q_loss = A × SoC_factor × √t (Keil et al. 2016)
+ *   Cinétique de croissance SEI (Solid Electrolyte Interphase), dépendant du SoC de stockage.
+ *
+ * - Facteur SoC stockage : SoC_factor = 1 + 2.13 × (SoC - 0.5) (Ecker et al. 2014)
+ *   Stocker à 100% SoC accélère le vieillissement ×2.07 vs 50% SoC.
+ *
+ * - Décharge profonde : dissolution du cuivre sous 2.5V (Spotnitz 2003)
+ *   Dommages irréversibles proportionnels au temps passé en décharge profonde.
+ *
+ * - Résistance interne : croissance SEI en √N (Safari & Delacourt 2011)
+ *
+ * Sources :
+ * - Schmalstieg et al., J. Power Sources 257 (2014) 325-334
+ * - Ecker et al., J. Power Sources 248 (2014) 839-851
+ * - Safari & Delacourt, J. Electrochem. Soc. 158 (2011) A1123
+ * - Spotnitz, J. Power Sources 113 (2003) 72-80
+ * - Sauer & Wenzl, J. Power Sources 176 (2008) 534-546
  */
 @Singleton
 class BatteryPredictionService @Inject constructor() {
 
-    /**
-     * Nombre de cycles maximum estimé par type de batterie
-     */
-    private fun getMaxCycles(type: BatteryType): Int = when (type) {
-        BatteryType.LIPO -> 400
-        BatteryType.LI_ION -> 650
-        BatteryType.NIMH -> 1000
-        BatteryType.LIFE -> 2000
-        BatteryType.OTHER -> 500
+    companion object {
+        // ── Constantes physiques ──
+        const val R = 8.314       // Constante des gaz (J/(mol·K))
+        const val T_REF = 298.15  // Température de référence 25°C (K)
+
+        // ── Seuils opérationnels ──
+        const val FULL_CHARGE_STRESS_HOURS = 24L
+        const val DEEP_DISCHARGE_STRESS_HOURS = 48L
+        const val HIGH_FREQUENCY_THRESHOLD = 2
+        const val MAX_STRESS_PENALTY = 40f          // plafond réaliste basé sur la littérature
+
+        const val CONFIDENCE_BASE = 30
+        const val PROJECTION_FUTURE_MONTHS = 24
+        const val EOL_THRESHOLD = 0.80f             // fin de vie = 80% de la capacité nominale (convention industrie)
+
+        // ── Paramètres de dégradation par cycles ──
+        // Calibrés pour que Q_loss = 20% au nombre de cycles typique de fin de vie à 25°C/1C
+        // Formule : Q_loss_cycle = B_eff × N^z
+        //
+        //   LiPo  : ~20% loss à 300 cycles (z=0.55) → B = 0.20 / 300^0.55 = 0.00817
+        //   Li-Ion: ~20% loss à 500 cycles (z=0.50) → B = 0.20 / 500^0.50 = 0.00894
+        //   LiFe  : ~20% loss à 2000 cycles (z=0.50) → B = 0.20 / 2000^0.50 = 0.00447
+        //   NiMH  : ~20% loss à 500 cycles (z=0.80) → B = 0.20 / 500^0.80 = 0.00135
+        private data class CycleParams(val b: Double, val z: Double, val maxCycles: Int)
+        private val CYCLE_PARAMS = mapOf(
+            BatteryType.LIPO    to CycleParams(0.00817, 0.55, 400),
+            BatteryType.LI_ION  to CycleParams(0.00894, 0.50, 650),
+            BatteryType.NIMH    to CycleParams(0.00135, 0.80, 1000),
+            BatteryType.LIFE    to CycleParams(0.00447, 0.50, 2000),
+            BatteryType.OTHER   to CycleParams(0.00800, 0.55, 500)
+        )
+
+        // ── Paramètres de vieillissement calendaire ──
+        // Perte annuelle à 25°C, 50% SoC, en fraction (√année)
+        // Basé sur Ecker et al. 2014, Keil et al. 2016
+        private val CALENDAR_LOSS_RATE = mapOf(
+            BatteryType.LIPO    to 0.08,  // ~8% par √année
+            BatteryType.LI_ION  to 0.05,  // ~5% par √année
+            BatteryType.NIMH    to 0.06,  // ~6% (auto-décharge + dégradation)
+            BatteryType.LIFE    to 0.025, // ~2.5% (très stable)
+            BatteryType.OTHER   to 0.06
+        )
+
+        // ── Énergie d'activation Arrhenius (J/mol) ──
+        // Pour correction température : factor = exp(Ea/R × (1/T_ref - 1/T))
+        private val ACTIVATION_ENERGY = mapOf(
+            BatteryType.LIPO    to 31500.0,  // Schmalstieg et al.
+            BatteryType.LI_ION  to 31700.0,
+            BatteryType.NIMH    to 25000.0,
+            BatteryType.LIFE    to 22400.0,  // Safari & Delacourt
+            BatteryType.OTHER   to 30000.0
+        )
+
+        // ── Augmentation max de résistance interne à fin de vie (%) ──
+        // Safari & Delacourt 2011 : R_increase ~ √N relationship
+        private val MAX_RESISTANCE_INCREASE = mapOf(
+            BatteryType.LIPO    to 80.0,
+            BatteryType.LI_ION  to 60.0,
+            BatteryType.NIMH    to 40.0,
+            BatteryType.LIFE    to 25.0,
+            BatteryType.OTHER   to 70.0
+        )
+
+        // ── Facteur SoC pour vieillissement calendaire ──
+        // Ecker et al. 2014 : linéaire en SoC, centré sur 50%
+        // SoC_factor(1.0) = 2.065 (100% SoC → ×2 vs stockage idéal)
+        // SoC_factor(0.5) = 1.0   (stockage idéal)
+        // SoC_factor(0.0) = max(0.5, ...) (basse SoC = moins de stress SEI mais Cu dissolution)
+        const val SOC_FACTOR_SLOPE = 2.13  // Ecker et al.
+
+        // ── Pénalité décharge profonde ──
+        // Dissolution du cuivre sous ~2.5V (Spotnitz 2003)
+        // Dommage irréversible : ~0.12% de capacité perdue par jour de décharge profonde
+        private val DEEP_DISCHARGE_RATE_PER_DAY = mapOf(
+            BatteryType.LIPO    to 0.15,  // Très sensible, gonflement possible
+            BatteryType.LI_ION  to 0.12,  // Cu dissolution (Spotnitz)
+            BatteryType.NIMH    to 0.03,  // Peu sensible, pas de Cu
+            BatteryType.LIFE    to 0.02,  // Très tolérant
+            BatteryType.OTHER   to 0.10
+        )
+
+        // ── Facteur C-rate ──
+        // Ning/Popov : chaque 1C au-delà de 1C ajoute ~20% de dégradation
+        // Pour drones : C-rate typique = 2-8C en décharge
+        const val C_RATE_FACTOR_SLOPE = 0.20  // +20% dégradation par C au-dessus de 1C
     }
+
+    private fun getMaxCycles(type: BatteryType): Int = CYCLE_PARAMS[type]?.maxCycles ?: 500
 
     /**
      * Génère la prédiction complète pour une batterie
@@ -214,14 +313,14 @@ class BatteryPredictionService @Inject constructor() {
                 when (current.newStatus) {
                     // Stockage à pleine charge : chaque heure au-delà de 24h compte
                     BatteryStatus.CHARGED -> {
-                        if (durationHours > 24) {
-                            fullChargeDays += (durationHours - 24f) / 24f
+                        if (durationHours > FULL_CHARGE_STRESS_HOURS) {
+                            fullChargeDays += (durationHours - FULL_CHARGE_STRESS_HOURS) / 24f
                         }
                     }
                     // Décharge prolongée : chaque heure au-delà de 48h compte
                     BatteryStatus.DISCHARGED -> {
-                        if (durationHours > 48) {
-                            deepDischargeDays += (durationHours - 48f) / 24f
+                        if (durationHours > DEEP_DISCHARGE_STRESS_HOURS) {
+                            deepDischargeDays += (durationHours - DEEP_DISCHARGE_STRESS_HOURS) / 24f
                         }
                     }
                     else -> { /* STORAGE et OUT_OF_SERVICE sont OK */ }
@@ -237,13 +336,13 @@ class BatteryPredictionService @Inject constructor() {
 
                 when (lastEvent.newStatus) {
                     BatteryStatus.CHARGED -> {
-                        if (hoursSinceLastEvent > 24) {
-                            fullChargeDays += (hoursSinceLastEvent - 24f) / 24f
+                        if (hoursSinceLastEvent > FULL_CHARGE_STRESS_HOURS) {
+                            fullChargeDays += (hoursSinceLastEvent - FULL_CHARGE_STRESS_HOURS) / 24f
                         }
                     }
                     BatteryStatus.DISCHARGED -> {
-                        if (hoursSinceLastEvent > 48) {
-                            deepDischargeDays += (hoursSinceLastEvent - 48f) / 24f
+                        if (hoursSinceLastEvent > DEEP_DISCHARGE_STRESS_HOURS) {
+                            deepDischargeDays += (hoursSinceLastEvent - DEEP_DISCHARGE_STRESS_HOURS) / 24f
                         }
                     }
                     else -> {}
@@ -272,39 +371,29 @@ class BatteryPredictionService @Inject constructor() {
 
         if (cycleEvents.size >= 3) {
             val cyclesByDay = cycleEvents.groupBy { it.timestamp.toLocalDate() }
-            highFrequencyPeriods = cyclesByDay.count { (_, cycles) -> cycles.size > 2 }
+            highFrequencyPeriods = cyclesByDay.count { (_, cycles) -> cycles.size > HIGH_FREQUENCY_THRESHOLD }
         }
 
-        // Calcul des pénalités par type de batterie
-        // LiPo est très sensible au stockage chargé, LiFe beaucoup moins
-        val fullChargePenaltyRate = when (battery.type) {
-            BatteryType.LIPO -> 0.3f    // -0.3% par jour de stockage chargé
-            BatteryType.LI_ION -> 0.15f
-            BatteryType.NIMH -> 0.05f   // Peu sensible
-            BatteryType.LIFE -> 0.03f   // Très résistant
-            BatteryType.OTHER -> 0.2f
-        }
+        // ── Pénalités basées sur la littérature scientifique ──
 
-        val deepDischargePenaltyRate = when (battery.type) {
-            BatteryType.LIPO -> 0.5f    // -0.5% par jour de décharge profonde (très mauvais)
-            BatteryType.LI_ION -> 0.3f
-            BatteryType.NIMH -> 0.1f
-            BatteryType.LIFE -> 0.05f
-            BatteryType.OTHER -> 0.3f
-        }
+        // Stockage à pleine charge : Ecker et al. 2014
+        // Le facteur SoC à 100% est ~2.07× vs 50% (idéal)
+        // Pénalité = jours × (SoC_factor - 1) × taux calendaire journalier
+        val calendarRatePerDay = (CALENDAR_LOSS_RATE[battery.type] ?: 0.06) / kotlin.math.sqrt(365.0)
+        val socFactorFull = 1.0 + SOC_FACTOR_SLOPE * (1.0 - 0.5) // = 2.065
+        val fullChargePenaltyRate = ((socFactorFull - 1.0) * calendarRatePerDay * 100.0).toFloat() // %/jour excédentaire
 
-        val highFrequencyPenaltyRate = when (battery.type) {
-            BatteryType.LIPO -> 0.15f   // -0.15% par période d'usage intensif
-            BatteryType.LI_ION -> 0.1f
-            BatteryType.NIMH -> 0.05f
-            BatteryType.LIFE -> 0.03f
-            BatteryType.OTHER -> 0.1f
-        }
+        // Décharge profonde : Spotnitz 2003 — dissolution Cu
+        val deepDischargePenaltyRate = (DEEP_DISCHARGE_RATE_PER_DAY[battery.type] ?: 0.10).toFloat()
+
+        // Usage intensif (C-rate élevé) : Ning/Popov
+        // Chaque jour à >2 cycles ≈ opération à C-rate élevé
+        val highFrequencyPenaltyRate = (C_RATE_FACTOR_SLOPE * 0.5).toFloat() // 0.10% par période intensive
 
         val fullChargePenalty = fullChargeDays * fullChargePenaltyRate
         val deepDischargePenalty = deepDischargeDays * deepDischargePenaltyRate
         val highFrequencyPenalty = highFrequencyPeriods * highFrequencyPenaltyRate
-        val totalPenalty = (fullChargePenalty + deepDischargePenalty + highFrequencyPenalty).coerceAtMost(30f) // Max 30%
+        val totalPenalty = (fullChargePenalty + deepDischargePenalty + highFrequencyPenalty).coerceAtMost(MAX_STRESS_PENALTY)
 
         return StressFactors(
             fullChargeDays = fullChargeDays,
@@ -320,45 +409,59 @@ class BatteryPredictionService @Inject constructor() {
     /**
      * Estime le % de capacité restante basé sur le type, les cycles et l'âge.
      *
-     * Utilise un modèle NON-LINÉAIRE réaliste :
-     * - Phase 1 (0 à ~70% des cycles max) : dégradation lente, quasi-linéaire
-     * - Phase 2 (70-100% des cycles max) : dégradation accélérée ("knee point")
+     * Modèle combiné validé par la littérature :
      *
-     * Formule : retention = 100 * exp(-k * (cycles/maxCycles)^n)
-     * où k et n varient par type de batterie pour modéliser le "coude"
+     * 1. Dégradation par cycles (Schmalstieg et al. 2014, Wang et al. 2014) :
+     *    Q_loss_cycle = B × N^z
+     *    Loi puissance, où z < 1 donne une dégradation décélérante (SEI stabilisation),
+     *    z > 0.5 pour NiMH modélise la dégradation plus régulière.
+     *    B est calibré pour 20% de perte au nombre de cycles typique de fin de vie.
      *
-     * + vieillissement calendaire (non-linéaire aussi, sqrt du temps)
+     * 2. Vieillissement calendaire (Keil et al. 2016, Ecker et al. 2014) :
+     *    Q_loss_cal = A × √(t_années)
+     *    Cinétique de croissance de la couche SEI, proportionnelle à √t.
+     *    Dépend du SoC de stockage : stockage à 50% = idéal, 100% = ×2.07 plus rapide.
+     *
+     * 3. Combinaison additive (convention industrielle) :
+     *    SoH = 1.0 - Q_loss_cycle - Q_loss_cal
+     *
+     * @param type Chimie de la batterie
+     * @param cycles Nombre de cycles complets effectués
+     * @param ageDays Âge en jours depuis l'achat
+     * @param temperatureC Température ambiante moyenne (défaut 25°C)
+     * @return Capacité restante en % (0-100)
      */
-    private fun estimateCapacityRetention(type: BatteryType, cycles: Int, ageDays: Long): Float {
-        val maxCycles = getMaxCycles(type)
-        val cycleRatio = cycles.toFloat() / maxCycles
+    private fun estimateCapacityRetention(
+        type: BatteryType,
+        cycles: Int,
+        ageDays: Long,
+        temperatureC: Float = 25f
+    ): Float {
+        val params = CYCLE_PARAMS[type] ?: CYCLE_PARAMS[BatteryType.OTHER]!!
 
-        // Paramètres de la courbe de dégradation par type
-        // k = intensité de la dégradation, n = exposant (>1 = accélération en fin de vie)
-        val (k, n) = when (type) {
-            BatteryType.LIPO -> 0.7f to 2.2f    // Coude marqué, décroche vite après 70%
-            BatteryType.LI_ION -> 0.5f to 1.8f  // Plus progressif
-            BatteryType.NIMH -> 0.3f to 1.5f     // Dégradation douce
-            BatteryType.LIFE -> 0.2f to 1.3f     // Très stable, presque linéaire
-            BatteryType.OTHER -> 0.5f to 2.0f
-        }
+        // ── Correction Arrhenius pour la température ──
+        // factor = exp(Ea/R × (1/T_ref - 1/T))
+        // À 25°C : factor = 1.0 (référence)
+        // À 35°C : factor ≈ 1.8-2.0 (dégradation accélérée)
+        val ea = ACTIVATION_ENERGY[type] ?: 30000.0
+        val tKelvin = temperatureC + 273.15
+        val arrheniusFactor = kotlin.math.exp(ea / R * (1.0 / T_REF - 1.0 / tKelvin))
 
-        // Dégradation par cycles (exponentielle avec accélération)
-        val cycleDegradation = kotlin.math.exp(-k * Math.pow(cycleRatio.toDouble(), n.toDouble())).toFloat()
+        // ── Perte par cycles : Q_loss = B × N^z × Arrhenius ──
+        val cycleLoss = if (cycles > 0) {
+            params.b * Math.pow(cycles.toDouble(), params.z) * arrheniusFactor
+        } else 0.0
 
-        // Vieillissement calendaire : sqrt du temps (ralentit avec l'âge)
-        // Perte de ~5-15% sur les 3 premières années selon le type
-        val calendarLossRate = when (type) {
-            BatteryType.LIPO -> 0.08f   // ~8% par sqrt(année)
-            BatteryType.LI_ION -> 0.05f
-            BatteryType.NIMH -> 0.03f
-            BatteryType.LIFE -> 0.02f
-            BatteryType.OTHER -> 0.06f
-        }
-        val yearsElapsed = ageDays / 365f
-        val calendarRetention = 1f - calendarLossRate * kotlin.math.sqrt(yearsElapsed.toDouble()).toFloat()
+        // ── Perte calendaire : Q_loss = A × √(t_années) × Arrhenius ──
+        val calendarRate = CALENDAR_LOSS_RATE[type] ?: 0.06
+        val yearsElapsed = ageDays / 365.0
+        val calendarLoss = calendarRate * kotlin.math.sqrt(yearsElapsed) * arrheniusFactor
 
-        return (cycleDegradation * calendarRetention * 100f).coerceIn(0f, 100f)
+        // ── Combinaison additive (standard industriel) ──
+        val totalLoss = cycleLoss + calendarLoss
+        val retention = (1.0 - totalLoss) * 100.0
+
+        return retention.toFloat().coerceIn(0f, 100f)
     }
 
     /**
@@ -404,22 +507,24 @@ class BatteryPredictionService @Inject constructor() {
 
     /**
      * Estime l'augmentation de résistance interne en % vs neuf.
-     * La résistance augmente de façon quadratique avec les cycles
-     * (accélération en fin de vie, comme la capacité).
+     *
+     * Modèle : Safari & Delacourt 2011 (J. Electrochem. Soc.)
+     * La résistance interne augmente proportionnellement à √N (croissance SEI)
+     * puis s'accélère en fin de vie (perte de lithium actif).
+     *
+     * R_increase = R_max × (N / N_max)^0.5 + composante quadratique en fin de vie
      */
     private fun estimateResistanceIncrease(type: BatteryType, cycles: Int): Float {
         val maxCycles = getMaxCycles(type)
         val ratio = cycles.toFloat() / maxCycles
+        val maxIncrease = (MAX_RESISTANCE_INCREASE[type] ?: 70.0).toFloat()
 
-        // Augmentation quadratique : lente au début, rapide en fin de vie
-        val maxIncrease = when (type) {
-            BatteryType.LIPO -> 80f    // +80% à fin de vie
-            BatteryType.LI_ION -> 60f
-            BatteryType.NIMH -> 40f
-            BatteryType.LIFE -> 25f
-            BatteryType.OTHER -> 70f
-        }
-        return (maxIncrease * ratio * ratio).coerceAtMost(200f)
+        // √N pour la croissance SEI + terme quadratique pour l'accélération fin de vie
+        val seiGrowth = kotlin.math.sqrt(ratio.toDouble()).toFloat()
+        val endOfLifeAcceleration = ratio * ratio
+        val increase = maxIncrease * (0.7f * seiGrowth + 0.3f * endOfLifeAcceleration)
+
+        return increase.coerceAtMost(200f)
     }
 
     /**
@@ -452,7 +557,7 @@ class BatteryPredictionService @Inject constructor() {
         points.add(PredictionPoint(today, battery.getHealthPercentage().toFloat(), isPredicted = false))
 
         // Points de projection future (jusqu'à 0% ou 2 ans max)
-        val futureMonths = 24
+        val futureMonths = PROJECTION_FUTURE_MONTHS
         for (i in 1..futureMonths) {
             val futureDate = today.plusMonths(i.toLong())
             val totalDays = ChronoUnit.DAYS.between(purchaseDate, futureDate).toFloat()
@@ -480,7 +585,7 @@ class BatteryPredictionService @Inject constructor() {
      * Confiance de la prédiction basée sur la quantité de données
      */
     private fun calculateConfidence(battery: Battery, history: List<BatteryHistory>): Int {
-        var confidence = 30 // Base
+        var confidence = CONFIDENCE_BASE
 
         // Plus on a de cycles, plus c'est fiable
         if (battery.cycleCount >= 10) confidence += 15
