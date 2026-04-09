@@ -11,6 +11,11 @@ import kotlinx.coroutines.flow.update
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.repository.BatteryRepository
+import leonfvt.skyfuel_app.domain.service.BatteryPrediction
+import leonfvt.skyfuel_app.domain.service.BatteryPredictionService
+import leonfvt.skyfuel_app.domain.service.FleetHealthScore
+import leonfvt.skyfuel_app.domain.service.VoltageTrend
+import leonfvt.skyfuel_app.domain.service.WeeklyActivity
 import leonfvt.skyfuel_app.util.ErrorHandler
 import leonfvt.skyfuel_app.util.UseCaseExtensions.executeUseCase
 import javax.inject.Inject
@@ -23,34 +28,44 @@ data class StatisticsState(
     val storageCount: Int = 0,
     val outOfServiceCount: Int = 0,
     val averageCycleCount: Float = 0f,
-    val maxCycles: Int = 200, // Max cycles recommandé par défaut
+    val maxCycles: Int = 200,
     val cyclesByBrand: Map<String, Float> = emptyMap(),
     val cyclesByType: Map<String, Float> = emptyMap(),
-    val healthyCount: Int = 0,      // < 50% des cycles max
-    val warningCount: Int = 0,      // 50-80% des cycles max
-    val criticalCount: Int = 0,     // > 80% des cycles max
+    val healthyCount: Int = 0,
+    val warningCount: Int = 0,
+    val criticalCount: Int = 0,
     val oldestBattery: Battery? = null,
     val mostUsedBattery: Battery? = null,
     val totalCycles: Int = 0,
-    val monthlyActivity: List<Pair<String, Float>> = emptyList()
+    // Nouvelles données analytiques
+    val predictions: List<BatteryPrediction> = emptyList(),
+    val fleetHealth: FleetHealthScore? = null,
+    val voltageTrends: List<VoltageTrend> = emptyList(),
+    val activityHeatmap: List<WeeklyActivity> = emptyList(),
+    val selectedBatteryPrediction: BatteryPrediction? = null
 )
 
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
-    private val repository: BatteryRepository
+    private val repository: BatteryRepository,
+    private val predictionService: BatteryPredictionService
 ) : ViewModel() {
-    
+
     private val _state = MutableStateFlow(StatisticsState())
     val state: StateFlow<StatisticsState> = _state.asStateFlow()
-    
+
     init {
         loadStatistics()
     }
-    
+
     fun refresh() {
         loadStatistics()
     }
-    
+
+    fun selectBatteryPrediction(prediction: BatteryPrediction?) {
+        _state.update { it.copy(selectedBatteryPrediction = prediction) }
+    }
+
     private fun loadStatistics() {
         executeUseCase(
             useCase = { repository.getAllBatteries().first() },
@@ -64,52 +79,37 @@ class StatisticsViewModel @Inject constructor(
                     _state.update { it.copy(isLoading = false) }
                     return@executeUseCase
                 }
-                
+
                 calculateAndUpdateStatistics(batteries)
+                loadPredictions(batteries)
+                loadHistoryData(batteries)
             }
         )
     }
-    
-    /**
-     * Calcule et met à jour les statistiques à partir de la liste des batteries
-     */
+
     private fun calculateAndUpdateStatistics(batteries: List<Battery>) {
-        // Comptages par statut
         val chargedCount = batteries.count { it.status == BatteryStatus.CHARGED }
         val dischargedCount = batteries.count { it.status == BatteryStatus.DISCHARGED }
         val storageCount = batteries.count { it.status == BatteryStatus.STORAGE }
         val outOfServiceCount = batteries.count { it.status == BatteryStatus.OUT_OF_SERVICE }
-        
-        // Cycles moyens
         val averageCycles = batteries.map { it.cycleCount }.average().toFloat()
         val totalCycles = batteries.sumOf { it.cycleCount }
-        
-        // Cycles par marque
+
         val cyclesByBrand = batteries
             .groupBy { it.brand }
-            .mapValues { (_, batteryList) ->
-                batteryList.map { it.cycleCount }.average().toFloat()
-            }
-        
-        // Cycles par type
+            .mapValues { (_, list) -> list.map { it.cycleCount }.average().toFloat() }
+
         val cyclesByType = batteries
             .groupBy { it.type.name }
-            .mapValues { (_, batteryList) ->
-                batteryList.map { it.cycleCount }.average().toFloat()
-            }
-        
-        // Santé des batteries (basée sur 200 cycles max)
+            .mapValues { (_, list) -> list.map { it.cycleCount }.average().toFloat() }
+
         val maxCycles = 200
         val healthyCount = batteries.count { it.cycleCount < maxCycles * 0.5 }
         val warningCount = batteries.count { it.cycleCount >= maxCycles * 0.5 && it.cycleCount < maxCycles * 0.8 }
         val criticalCount = batteries.count { it.cycleCount >= maxCycles * 0.8 }
-        
-        // Batterie la plus ancienne
         val oldestBattery = batteries.minByOrNull { it.purchaseDate }
-        
-        // Batterie la plus utilisée
         val mostUsedBattery = batteries.maxByOrNull { it.cycleCount }
-        
+
         _state.update {
             it.copy(
                 isLoading = false,
@@ -130,5 +130,58 @@ class StatisticsViewModel @Inject constructor(
                 totalCycles = totalCycles
             )
         }
+    }
+
+    private fun loadPredictions(batteries: List<Battery>) {
+        executeUseCase(
+            useCase = {
+                batteries.map { battery ->
+                    val history = repository.getBatteryHistory(battery.id).first()
+                    predictionService.predictBatteryLifespan(battery, history)
+                }
+            },
+            onStart = { },
+            onError = { error ->
+                ErrorHandler.logError(error, "Erreur lors du calcul des prédictions")
+            },
+            onSuccess = { predictions ->
+                val fleetHealth = predictionService.calculateFleetHealth(
+                    batteries, predictions
+                )
+                _state.update {
+                    it.copy(
+                        predictions = predictions,
+                        fleetHealth = fleetHealth,
+                        selectedBatteryPrediction = predictions.firstOrNull()
+                    )
+                }
+            }
+        )
+    }
+
+    private fun loadHistoryData(batteries: List<Battery>) {
+        executeUseCase(
+            useCase = {
+                val allHistory = batteries.flatMap { battery ->
+                    repository.getBatteryHistory(battery.id).first()
+                }
+                allHistory
+            },
+            onStart = { },
+            onError = { error ->
+                ErrorHandler.logError(error, "Erreur lors du chargement de l'historique")
+            },
+            onSuccess = { allHistory ->
+                val voltageTrends = predictionService.getVoltageTrends(allHistory)
+                val heatmap = predictionService.generateActivityHeatmap(allHistory)
+
+                _state.update {
+                    it.copy(
+                        voltageTrends = voltageTrends,
+                        activityHeatmap = heatmap
+                    )
+                }
+            }
+        )
     }
 }

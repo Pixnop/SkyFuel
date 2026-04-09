@@ -35,6 +35,9 @@
 # Keep data classes for serialization
 -keep class leonfvt.skyfuel_app.data.preferences.** { *; }
 
+# Keep sync service models
+-keep class leonfvt.skyfuel_app.data.sync.** { *; }
+
 # ============================================
 # Hilt / Dagger Rules
 # ============================================

@@ -8,6 +8,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import leonfvt.skyfuel_app.data.repository.CategoryRepository
 import leonfvt.skyfuel_app.domain.model.BatteryType
 import leonfvt.skyfuel_app.domain.model.Result
 import leonfvt.skyfuel_app.domain.usecase.AddBatteryUseCase
@@ -22,19 +23,32 @@ import javax.inject.Inject
  */
 @HiltViewModel
 class AddBatteryViewModel @Inject constructor(
-    private val addBatteryUseCase: AddBatteryUseCase
+    private val addBatteryUseCase: AddBatteryUseCase,
+    private val categoryRepository: CategoryRepository
 ) : ViewModel() {
-    
+
     // État interne mutable
     private val _state = MutableStateFlow(AddBatteryState())
 
     // État exposé pour l'UI
     val state: StateFlow<AddBatteryState> = _state.asStateFlow()
-    
+
     // Pour les événements de navigation
     private val _navigationEvent = MutableStateFlow<String?>(null)
     val navigationEvent: StateFlow<String?> = _navigationEvent
-    
+
+    init {
+        loadCategories()
+    }
+
+    private fun loadCategories() {
+        viewModelScope.launch {
+            categoryRepository.getAllCategories().collect { categories ->
+                _state.update { it.copy(allCategories = categories) }
+            }
+        }
+    }
+
     /**
      * Gère les événements de l'UI
      */
@@ -95,6 +109,16 @@ class AddBatteryViewModel @Inject constructor(
             is AddBatteryEvent.UpdateNotes -> {
                 _state.update { it.copy(notes = event.notes) }
             }
+            is AddBatteryEvent.ToggleCategory -> {
+                _state.update { state ->
+                    val newSet = if (state.selectedCategoryIds.contains(event.categoryId)) {
+                        state.selectedCategoryIds - event.categoryId
+                    } else {
+                        state.selectedCategoryIds + event.categoryId
+                    }
+                    state.copy(selectedCategoryIds = newSet)
+                }
+            }
             is AddBatteryEvent.SubmitBattery -> {
                 submitBattery()
             }
@@ -147,6 +171,11 @@ class AddBatteryViewModel @Inject constructor(
             result
                 .onSuccess { batteryId ->
                     Timber.i("AddBatteryViewModel: Battery added with ID $batteryId")
+                    // Assigner les catégories sélectionnées
+                    val selectedIds = _state.value.selectedCategoryIds
+                    if (selectedIds.isNotEmpty()) {
+                        categoryRepository.updateBatteryCategories(batteryId, selectedIds.toList())
+                    }
                     _state.update {
                         it.copy(
                             isSubmitting = false,

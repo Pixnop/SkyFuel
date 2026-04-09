@@ -25,7 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material.icons.filled.ShowChart
+import androidx.compose.material.icons.automirrored.filled.ShowChart
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -48,7 +48,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import leonfvt.skyfuel_app.domain.model.BatteryStatistics
+import leonfvt.skyfuel_app.presentation.theme.Info
 import leonfvt.skyfuel_app.presentation.theme.SkyFuelTheme
+import leonfvt.skyfuel_app.presentation.theme.StatusOutOfService
+import leonfvt.skyfuel_app.presentation.theme.Success
+import leonfvt.skyfuel_app.presentation.theme.Warning
 
 /**
  * Carte de statistiques du tableau de bord
@@ -118,7 +122,7 @@ fun DashboardStats(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ShowChart, 
+                        imageVector = Icons.AutoMirrored.Filled.ShowChart,
                         contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -176,7 +180,7 @@ fun DashboardStats(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "Cycles moyen: ${String.format("%.1f", statistics.averageCycleCount)}",
+                            text = "Cycles moyen: ${String.format(java.util.Locale.getDefault(), "%.1f", statistics.averageCycleCount)}",
                             style = MaterialTheme.typography.bodyMedium
                         )
                         
@@ -266,7 +270,7 @@ fun BatteryStatusDetails(
             statusName = "Chargées",
             count = chargedCount,
             percent = chargedPercent,
-            color = Color(0xFF4CAF50) // Vert
+            color = Success
         )
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -275,7 +279,7 @@ fun BatteryStatusDetails(
             statusName = "Déchargées",
             count = dischargedCount,
             percent = dischargedPercent,
-            color = Color(0xFFFFC107) // Jaune
+            color = Warning
         )
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -284,7 +288,7 @@ fun BatteryStatusDetails(
             statusName = "Stockage",
             count = storageCount,
             percent = storagePercent,
-            color = Color(0xFF2196F3) // Bleu
+            color = Info
         )
         
         Spacer(modifier = Modifier.height(8.dp))
@@ -303,7 +307,7 @@ fun BatteryStatusDetails(
                 text = outOfServiceCount.toString(),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                color = Color(0xFFE91E63) // Rose
+                color = StatusOutOfService
             )
         }
     }

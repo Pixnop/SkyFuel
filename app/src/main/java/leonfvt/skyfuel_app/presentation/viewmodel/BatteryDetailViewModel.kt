@@ -9,7 +9,17 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
+import leonfvt.skyfuel_app.data.local.dao.BatteryDao
+import leonfvt.skyfuel_app.data.local.dao.ChargeReminderDao
+import leonfvt.skyfuel_app.data.local.entity.ChargeReminderEntity
+import leonfvt.skyfuel_app.data.repository.CategoryRepository
+import kotlinx.coroutines.flow.first
 import leonfvt.skyfuel_app.domain.model.Battery
+import leonfvt.skyfuel_app.domain.model.ChargeReminder
+import leonfvt.skyfuel_app.domain.model.ReminderType
+import leonfvt.skyfuel_app.domain.repository.BatteryRepository
+import leonfvt.skyfuel_app.domain.service.BatteryPredictionService
 import leonfvt.skyfuel_app.domain.usecase.AddBatteryNoteUseCase
 import leonfvt.skyfuel_app.domain.usecase.DeleteBatteryUseCase
 import leonfvt.skyfuel_app.domain.usecase.GetBatteryDetailUseCase
@@ -22,11 +32,13 @@ import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryDetailState
 import leonfvt.skyfuel_app.util.ErrorHandler
 import leonfvt.skyfuel_app.util.UseCaseExtensions.executeFlowUseCase
 import leonfvt.skyfuel_app.util.UseCaseExtensions.executeUseCase
+import java.time.DayOfWeek
+import java.time.LocalTime
 import javax.inject.Inject
 
 /**
  * ViewModel pour l'écran de détails d'une batterie
- * Utilise les utilitaires de gestion d'erreurs pour plus de robustesse
+ * Gère les détails, catégories et rappels de charge
  */
 @HiltViewModel
 class BatteryDetailViewModel @Inject constructor(
@@ -37,31 +49,39 @@ class BatteryDetailViewModel @Inject constructor(
     private val addBatteryNoteUseCase: AddBatteryNoteUseCase,
     private val recordMaintenanceUseCase: RecordMaintenanceUseCase,
     private val deleteBatteryUseCase: DeleteBatteryUseCase,
+    private val categoryRepository: CategoryRepository,
+    private val reminderDao: ChargeReminderDao,
+    private val batteryDao: BatteryDao,
+    private val batteryRepository: BatteryRepository,
+    private val predictionService: BatteryPredictionService,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
-    
+
     // Récupération de l'ID de la batterie depuis les arguments de navigation
     private val batteryId: Long = savedStateHandle.get<Long>("batteryId") ?: 0
-    
+
     // État interne mutable
     private val _state = MutableStateFlow(BatteryDetailState(isLoading = true))
-    
+
     // État exposé pour l'UI
     val state: StateFlow<BatteryDetailState> = _state.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = BatteryDetailState(isLoading = true)
     )
-    
+
     // Pour les événements de navigation
     private val _navigationEvent = MutableStateFlow<String?>(null)
     val navigationEvent: StateFlow<String?> = _navigationEvent
-    
+
     init {
         loadBatteryDetail()
         loadBatteryHistory()
+        loadCategories()
+        loadReminders()
+        loadPrediction()
     }
-    
+
     /**
      * Gère les événements de l'UI
      */
@@ -88,6 +108,148 @@ class BatteryDetailViewModel @Inject constructor(
             is BatteryDetailEvent.ClearError -> {
                 clearError()
             }
+            // Catégories
+            is BatteryDetailEvent.ShowCategorySelector -> {
+                _state.update { it.copy(showCategorySelector = true) }
+            }
+            is BatteryDetailEvent.HideCategorySelector -> {
+                _state.update { it.copy(showCategorySelector = false) }
+            }
+            is BatteryDetailEvent.UpdateCategories -> {
+                updateBatteryCategories(event.categoryIds)
+            }
+            // Rappels
+            is BatteryDetailEvent.ShowAddReminder -> {
+                _state.update { it.copy(showReminderDialog = true, editingReminder = null) }
+            }
+            is BatteryDetailEvent.ShowEditReminder -> {
+                _state.update { it.copy(showReminderDialog = true, editingReminder = event.reminder) }
+            }
+            is BatteryDetailEvent.HideReminderDialog -> {
+                _state.update { it.copy(showReminderDialog = false, editingReminder = null) }
+            }
+            is BatteryDetailEvent.SaveReminder -> {
+                saveReminder(event.title, event.hour, event.minute, event.daysOfWeek, event.reminderType, event.notes)
+            }
+            is BatteryDetailEvent.ToggleReminder -> {
+                toggleReminder(event.reminder)
+            }
+            is BatteryDetailEvent.DeleteReminder -> {
+                deleteReminder(event.reminder)
+            }
+            // Photo
+            is BatteryDetailEvent.UpdatePhoto -> {
+                updatePhoto(event.photoPath)
+            }
+            is BatteryDetailEvent.RemovePhoto -> {
+                updatePhoto(null)
+            }
+        }
+    }
+
+    // ========== Photo ==========
+
+    private fun updatePhoto(photoPath: String?) {
+        viewModelScope.launch {
+            try {
+                batteryDao.updateBatteryPhoto(batteryId, photoPath)
+                loadBatteryDetail()
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Erreur lors de la mise à jour de la photo") }
+            }
+        }
+    }
+
+    // ========== Analytics / Prédiction ==========
+
+    private fun loadPrediction() {
+        viewModelScope.launch {
+            try {
+                val battery = getBatteryDetailUseCase(batteryId) ?: return@launch
+                val history = batteryRepository.getBatteryHistory(batteryId).first()
+                val prediction = predictionService.predictBatteryLifespan(battery, history)
+                val voltageTrends = predictionService.getVoltageTrends(history)
+                _state.update { it.copy(prediction = prediction, voltageTrends = voltageTrends) }
+            } catch (e: Exception) {
+                ErrorHandler.logError(e, "Erreur lors du calcul de la prédiction pour $batteryId")
+            }
+        }
+    }
+
+    // ========== Catégories ==========
+
+    private fun loadCategories() {
+        viewModelScope.launch {
+            categoryRepository.getCategoriesForBattery(batteryId).collect { categories ->
+                _state.update { it.copy(batteryCategories = categories) }
+            }
+        }
+        viewModelScope.launch {
+            categoryRepository.getAllCategories().collect { categories ->
+                _state.update { it.copy(allCategories = categories) }
+            }
+        }
+    }
+
+    private fun updateBatteryCategories(categoryIds: List<Long>) {
+        viewModelScope.launch {
+            try {
+                categoryRepository.updateBatteryCategories(batteryId, categoryIds)
+                _state.update { it.copy(showCategorySelector = false) }
+            } catch (e: Exception) {
+                _state.update { it.copy(error = "Erreur lors de la mise à jour des catégories") }
+            }
+        }
+    }
+
+    // ========== Rappels ==========
+
+    private fun loadReminders() {
+        viewModelScope.launch {
+            reminderDao.getRemindersByBattery(batteryId).collect { entities ->
+                _state.update { it.copy(reminders = entities.map { e -> e.toDomainModel() }) }
+            }
+        }
+    }
+
+    private fun saveReminder(
+        title: String,
+        hour: Int,
+        minute: Int,
+        daysOfWeek: Set<DayOfWeek>,
+        reminderType: ReminderType,
+        notes: String
+    ) {
+        viewModelScope.launch {
+            val reminder = ChargeReminder(
+                id = _state.value.editingReminder?.id ?: 0,
+                batteryId = batteryId,
+                title = title,
+                time = LocalTime.of(hour, minute),
+                daysOfWeek = daysOfWeek,
+                isEnabled = true,
+                reminderType = reminderType,
+                notes = notes
+            )
+            val entity = ChargeReminderEntity.fromDomainModel(reminder)
+            if (_state.value.editingReminder != null) {
+                reminderDao.updateReminder(entity)
+            } else {
+                reminderDao.insertReminder(entity)
+            }
+            _state.update { it.copy(showReminderDialog = false, editingReminder = null) }
+        }
+    }
+
+    private fun toggleReminder(reminder: ChargeReminder) {
+        viewModelScope.launch {
+            reminderDao.setReminderEnabled(reminder.id, !reminder.isEnabled)
+        }
+    }
+
+    private fun deleteReminder(reminder: ChargeReminder) {
+        viewModelScope.launch {
+            reminderDao.deleteReminder(ChargeReminderEntity.fromDomainModel(reminder))
         }
     }
     

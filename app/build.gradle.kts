@@ -68,8 +68,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
-    implementation("androidx.compose.material3:material3:1.2.0")
-    implementation("androidx.compose.material3:material3-window-size-class:1.2.0")
+    implementation("androidx.compose.material3:material3-window-size-class")
     implementation(libs.androidx.material.icons.core)
     implementation(libs.androidx.material.icons.extended)
     
@@ -117,14 +116,14 @@ dependencies {
     // Image loading (Coil)
     implementation(libs.coil.compose)
     
-    // Firebase - versions explicites (BOM non utilisé car problème de résolution)
-    implementation("com.google.firebase:firebase-auth-ktx:23.0.0")
-    implementation("com.google.firebase:firebase-firestore-ktx:25.0.0")
+    // Firebase
+    implementation("com.google.firebase:firebase-auth-ktx:23.2.1")
+    implementation("com.google.firebase:firebase-firestore-ktx:25.1.4")
 
     // Google Sign-In avec Credential Manager
-    implementation("androidx.credentials:credentials:1.3.0")
-    implementation("androidx.credentials:credentials-play-services-auth:1.3.0")
-    implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+    implementation("androidx.credentials:credentials:1.5.0")
+    implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+    implementation("com.google.android.libraries.identity.googleid:googleid:1.2.0")
     
     // Guava for ListenableFuture (required by CameraX)
     implementation("com.google.guava:guava:32.1.3-android")

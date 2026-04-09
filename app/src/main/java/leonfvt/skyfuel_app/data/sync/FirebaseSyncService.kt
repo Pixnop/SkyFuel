@@ -12,7 +12,12 @@ import kotlinx.coroutines.tasks.await
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
 import leonfvt.skyfuel_app.domain.model.BatteryType
+import leonfvt.skyfuel_app.domain.model.Category
+import leonfvt.skyfuel_app.domain.model.ChargeReminder
+import leonfvt.skyfuel_app.domain.model.ReminderType
+import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.LocalTime
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -247,6 +252,127 @@ class FirebaseSyncService @Inject constructor() {
         }
     }
     
+    // ========== Sync Catégories ==========
+
+    /**
+     * Synchronise les catégories avec Firebase
+     */
+    suspend fun syncCategories(categories: List<Category>): Boolean {
+        val userId = auth.currentUser?.uid ?: return false
+        if (!_syncState.value.isEnabled) return false
+
+        return try {
+            val categoriesRef = firestore
+                .collection("users")
+                .document(userId)
+                .collection("categories")
+
+            categories.forEach { category ->
+                categoriesRef.document(category.id.toString()).set(category.toMap()).await()
+            }
+            true
+        } catch (e: Exception) {
+            _syncState.value = _syncState.value.copy(
+                error = "Erreur sync catégories: ${e.message}"
+            )
+            false
+        }
+    }
+
+    /**
+     * Télécharge les catégories depuis Firebase
+     */
+    suspend fun downloadCategories(): List<Category>? {
+        val userId = auth.currentUser?.uid ?: return null
+
+        return try {
+            val snapshot = firestore
+                .collection("users")
+                .document(userId)
+                .collection("categories")
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    Category(
+                        id = doc.getLong("id") ?: 0L,
+                        name = doc.getString("name") ?: "",
+                        color = doc.getLong("color") ?: 0xFF4CAF50L,
+                        icon = doc.getString("icon") ?: "folder",
+                        description = doc.getString("description") ?: ""
+                    )
+                } catch (e: Exception) { null }
+            }
+        } catch (e: Exception) { null }
+    }
+
+    // ========== Sync Rappels ==========
+
+    /**
+     * Synchronise les rappels avec Firebase
+     */
+    suspend fun syncReminders(reminders: List<ChargeReminder>): Boolean {
+        val userId = auth.currentUser?.uid ?: return false
+        if (!_syncState.value.isEnabled) return false
+
+        return try {
+            val remindersRef = firestore
+                .collection("users")
+                .document(userId)
+                .collection("reminders")
+
+            reminders.forEach { reminder ->
+                remindersRef.document(reminder.id.toString()).set(reminder.toMap()).await()
+            }
+            true
+        } catch (e: Exception) {
+            _syncState.value = _syncState.value.copy(
+                error = "Erreur sync rappels: ${e.message}"
+            )
+            false
+        }
+    }
+
+    /**
+     * Télécharge les rappels depuis Firebase
+     */
+    suspend fun downloadReminders(): List<ChargeReminder>? {
+        val userId = auth.currentUser?.uid ?: return null
+
+        return try {
+            val snapshot = firestore
+                .collection("users")
+                .document(userId)
+                .collection("reminders")
+                .get()
+                .await()
+
+            snapshot.documents.mapNotNull { doc ->
+                try {
+                    ChargeReminder(
+                        id = doc.getLong("id") ?: 0L,
+                        batteryId = doc.getLong("batteryId") ?: 0L,
+                        title = doc.getString("title") ?: "",
+                        time = LocalTime.of(
+                            doc.getLong("hour")?.toInt() ?: 9,
+                            doc.getLong("minute")?.toInt() ?: 0
+                        ),
+                        daysOfWeek = (doc.get("daysOfWeek") as? List<*>)
+                            ?.mapNotNull { day ->
+                                try { DayOfWeek.valueOf(day.toString()) } catch (e: Exception) { null }
+                            }?.toSet() ?: emptySet(),
+                        isEnabled = doc.getBoolean("isEnabled") ?: true,
+                        reminderType = try {
+                            ReminderType.valueOf(doc.getString("reminderType") ?: "CHARGE")
+                        } catch (e: Exception) { ReminderType.CHARGE },
+                        notes = doc.getString("notes") ?: ""
+                    )
+                } catch (e: Exception) { null }
+            }
+        } catch (e: Exception) { null }
+    }
+
     /**
      * Efface l'erreur courante
      */
@@ -254,6 +380,26 @@ class FirebaseSyncService @Inject constructor() {
         _syncState.value = _syncState.value.copy(error = null)
     }
     
+    private fun Category.toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "name" to name,
+        "color" to color,
+        "icon" to icon,
+        "description" to description
+    )
+
+    private fun ChargeReminder.toMap(): Map<String, Any?> = mapOf(
+        "id" to id,
+        "batteryId" to batteryId,
+        "title" to title,
+        "hour" to time.hour,
+        "minute" to time.minute,
+        "daysOfWeek" to daysOfWeek.map { it.name },
+        "isEnabled" to isEnabled,
+        "reminderType" to reminderType.name,
+        "notes" to notes
+    )
+
     /**
      * Convertit une Battery en Map pour Firestore
      */

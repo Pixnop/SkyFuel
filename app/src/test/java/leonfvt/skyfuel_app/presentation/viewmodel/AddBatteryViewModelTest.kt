@@ -2,6 +2,7 @@ package leonfvt.skyfuel_app.presentation.viewmodel
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
+import leonfvt.skyfuel_app.data.repository.CategoryRepository
 import leonfvt.skyfuel_app.domain.model.BatteryType
 import leonfvt.skyfuel_app.domain.model.Result
 import leonfvt.skyfuel_app.domain.usecase.AddBatteryUseCase
@@ -22,11 +23,14 @@ class AddBatteryViewModelTest {
 
     private lateinit var viewModel: AddBatteryViewModel
     private lateinit var addBatteryUseCase: AddBatteryUseCase
+    private lateinit var categoryRepository: CategoryRepository
 
     @Before
     fun setUp() {
         addBatteryUseCase = mock(AddBatteryUseCase::class.java)
-        viewModel = AddBatteryViewModel(addBatteryUseCase)
+        categoryRepository = mock(CategoryRepository::class.java)
+        `when`(categoryRepository.getAllCategories()).thenReturn(kotlinx.coroutines.flow.flowOf(emptyList()))
+        viewModel = AddBatteryViewModel(addBatteryUseCase, categoryRepository)
     }
 
     @Test

@@ -38,7 +38,7 @@ import leonfvt.skyfuel_app.data.local.migration.DatabaseMigrations
         CategoryEntity::class,
         BatteryCategoryCrossRef::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = true
 )
 @TypeConverters(DateTimeConverters::class)
@@ -90,7 +90,7 @@ abstract class AppDatabase : RoomDatabase() {
                 // En développement uniquement, on peut permettre la migration destructive
                 // En production, cela crashera si une migration manque (ce qui est le comportement souhaité)
                 if (allowDestructiveMigration) {
-                    builder.fallbackToDestructiveMigration()
+                    builder.fallbackToDestructiveMigration(dropAllTables = true)
                 }
 
                 val instance = builder.build()

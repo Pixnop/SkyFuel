@@ -23,8 +23,8 @@ object DatabaseMigrations {
      * Ajoute la table charge_reminders pour les rappels de charge programmables.
      */
     val MIGRATION_1_2 = object : Migration(1, 2) {
-        override fun migrate(database: SupportSQLiteDatabase) {
-            database.execSQL("""
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("""
                 CREATE TABLE IF NOT EXISTS charge_reminders (
                     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                     batteryId INTEGER NOT NULL,
@@ -39,7 +39,7 @@ object DatabaseMigrations {
                 )
             """.trimIndent())
             
-            database.execSQL("CREATE INDEX IF NOT EXISTS index_charge_reminders_batteryId ON charge_reminders(batteryId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_charge_reminders_batteryId ON charge_reminders(batteryId)")
         }
     }
 
@@ -48,21 +48,20 @@ object DatabaseMigrations {
      * Ajoute les tables pour les catégories et tags de batteries.
      */
     val MIGRATION_2_3 = object : Migration(2, 3) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
             // Table des catégories
-            database.execSQL("""
+            db.execSQL("""
                 CREATE TABLE IF NOT EXISTS categories (
                     id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
                     name TEXT NOT NULL,
                     color INTEGER NOT NULL,
                     icon TEXT NOT NULL,
-                    description TEXT NOT NULL,
-                    createdAt TEXT NOT NULL
+                    description TEXT NOT NULL
                 )
             """.trimIndent())
             
             // Table de liaison many-to-many batteries <-> catégories
-            database.execSQL("""
+            db.execSQL("""
                 CREATE TABLE IF NOT EXISTS battery_category_cross_ref (
                     batteryId INTEGER NOT NULL,
                     categoryId INTEGER NOT NULL,
@@ -73,8 +72,8 @@ object DatabaseMigrations {
             """.trimIndent())
             
             // Index pour performances
-            database.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_batteryId ON battery_category_cross_ref(batteryId)")
-            database.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_categoryId ON battery_category_cross_ref(categoryId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_batteryId ON battery_category_cross_ref(batteryId)")
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_battery_category_cross_ref_categoryId ON battery_category_cross_ref(categoryId)")
         }
     }
     
@@ -83,12 +82,38 @@ object DatabaseMigrations {
      * Ajoute le champ photoPath pour les photos de batteries.
      */
     val MIGRATION_3_4 = object : Migration(3, 4) {
-        override fun migrate(database: SupportSQLiteDatabase) {
+        override fun migrate(db: SupportSQLiteDatabase) {
             // Ajoute la colonne photoPath à la table batteries
-            database.execSQL("ALTER TABLE batteries ADD COLUMN photoPath TEXT DEFAULT NULL")
+            db.execSQL("ALTER TABLE batteries ADD COLUMN photoPath TEXT DEFAULT NULL")
         }
     }
     
+    /**
+     * Migration de la version 4 vers la version 5.
+     * Ajoute l'index manquant sur batteryId dans battery_history et
+     * supprime la colonne createdAt de categories (schema mismatch fix).
+     */
+    val MIGRATION_4_5 = object : Migration(4, 5) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            // Index sur batteryId dans battery_history pour éviter les full table scans
+            db.execSQL("CREATE INDEX IF NOT EXISTS index_battery_history_batteryId ON battery_history(batteryId)")
+
+            // Fix schema mismatch: recréer la table categories sans createdAt
+            db.execSQL("""
+                CREATE TABLE IF NOT EXISTS categories_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+                    name TEXT NOT NULL,
+                    color INTEGER NOT NULL,
+                    icon TEXT NOT NULL,
+                    description TEXT NOT NULL
+                )
+            """.trimIndent())
+            db.execSQL("INSERT INTO categories_new (id, name, color, icon, description) SELECT id, name, color, icon, description FROM categories")
+            db.execSQL("DROP TABLE categories")
+            db.execSQL("ALTER TABLE categories_new RENAME TO categories")
+        }
+    }
+
     /**
      * Liste de toutes les migrations disponibles.
      * À utiliser dans Room.databaseBuilder().addMigrations(*ALL_MIGRATIONS)
@@ -97,5 +122,6 @@ object DatabaseMigrations {
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
+        MIGRATION_4_5,
     )
 }

@@ -4,6 +4,7 @@ import androidx.compose.runtime.Stable
 import leonfvt.skyfuel_app.domain.model.Battery
 import leonfvt.skyfuel_app.domain.model.BatteryAlert
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.domain.model.Category
 
 /**
  * Options de tri pour la liste des batteries
@@ -31,7 +32,9 @@ data class BatteryListState(
     val error: String? = null,
     val searchQuery: String = "",
     val filterStatus: BatteryStatus? = null,
-    val sortOption: SortOption = SortOption.NAME_ASC
+    val sortOption: SortOption = SortOption.NAME_ASC,
+    val categories: List<Category> = emptyList(),
+    val filterCategoryId: Long? = null
 ) {
     /**
      * Retourne les batteries triées selon l'option sélectionnée
@@ -59,6 +62,7 @@ sealed class BatteryListEvent {
     data class SelectBattery(val battery: Battery) : BatteryListEvent()
     data class DismissAlert(val alert: BatteryAlert) : BatteryListEvent()
     data class AlertClicked(val alert: BatteryAlert) : BatteryListEvent()
+    data class FilterByCategory(val categoryId: Long?) : BatteryListEvent()
     data object ClearSearch : BatteryListEvent()
     data object RefreshList : BatteryListEvent()
 }
