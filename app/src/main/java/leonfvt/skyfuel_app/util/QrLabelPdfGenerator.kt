@@ -198,7 +198,7 @@ class QrLabelPdfGenerator @Inject constructor() {
 
             // Si rien n'a pu être placé (ne devrait pas arriver), forcer une nouvelle page
             if (pagePlacements.isEmpty() && remaining.isNotEmpty()) {
-                val entry = remaining.removeFirst()
+                val entry = remaining.removeAt(0)
                 val labelW = entry.dimensions.widthMm * MM_TO_POINTS
                 val labelH = entry.dimensions.heightMm * MM_TO_POINTS
                 pagePlacements.add(Placement(entry, margin.toFloat(), margin.toFloat(), labelW, labelH))
