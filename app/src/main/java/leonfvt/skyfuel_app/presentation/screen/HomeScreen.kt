@@ -52,7 +52,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SmallFloatingActionButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -88,7 +87,6 @@ import leonfvt.skyfuel_app.domain.model.getComposeColor
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import leonfvt.skyfuel_app.presentation.component.AlertsSection
-import leonfvt.skyfuel_app.presentation.component.BatteryCard
 import leonfvt.skyfuel_app.presentation.component.BatteryGridCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
 import leonfvt.skyfuel_app.presentation.component.QrLabelPrintDialog
@@ -100,10 +98,14 @@ import leonfvt.skyfuel_app.presentation.component.SortSelector
 import leonfvt.skyfuel_app.presentation.component.BatteryListShimmer
 import leonfvt.skyfuel_app.presentation.component.DashboardStatsShimmer
 import leonfvt.skyfuel_app.presentation.viewmodel.state.SortOption
+import leonfvt.skyfuel_app.presentation.theme.Info
 import leonfvt.skyfuel_app.presentation.theme.StatusAvailable
 import leonfvt.skyfuel_app.presentation.theme.StatusDecommissioned
 import leonfvt.skyfuel_app.presentation.theme.StatusInUse
 import leonfvt.skyfuel_app.presentation.theme.StatusMaintenance
+import leonfvt.skyfuel_app.presentation.theme.StatusOutOfService
+import leonfvt.skyfuel_app.presentation.theme.Success
+import leonfvt.skyfuel_app.presentation.theme.Warning
 import leonfvt.skyfuel_app.presentation.viewmodel.QrCodeViewModel
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryListEvent
 import leonfvt.skyfuel_app.presentation.viewmodel.state.BatteryListState
@@ -289,53 +291,28 @@ fun HomeScreen(
             )
         },
         floatingActionButton = {
-            Box {
-                // FAB Principal pour ajouter une batterie
-                ExtendedFloatingActionButton(
-                    onClick = onNavigateToAddBattery,
-                    icon = {
-                        Icon(
-                            imageVector = Icons.Default.Add,
-                            contentDescription = "Ajouter une batterie"
-                        )
-                    },
-                    text = {
-                        AnimatedVisibility(
-                            visible = showExtendedFab,
-                            enter = fadeIn() + scaleIn(),
-                            exit = fadeOut() + scaleOut()
-                        ) {
-                            Text("Ajouter une batterie")
-                        }
-                    },
-                    expanded = showExtendedFab,
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                    elevation = FloatingActionButtonDefaults.elevation(8.dp)
-                )
-                
-                // FAB secondaire pour scanner (visible seulement en scroll)
-                AnimatedVisibility(
-                    visible = !showExtendedFab,
-                    enter = fadeIn() + scaleIn(),
-                    exit = fadeOut() + scaleOut(),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(bottom = 72.dp)
-                ) {
-                    SmallFloatingActionButton(
-                        onClick = { showQrScanner = true },
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        modifier = Modifier.shadow(4.dp, CircleShape)
+            ExtendedFloatingActionButton(
+                onClick = onNavigateToAddBattery,
+                icon = {
+                    Icon(
+                        imageVector = Icons.Default.Add,
+                        contentDescription = "Ajouter une batterie"
+                    )
+                },
+                text = {
+                    AnimatedVisibility(
+                        visible = showExtendedFab,
+                        enter = fadeIn() + scaleIn(),
+                        exit = fadeOut() + scaleOut()
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.QrCodeScanner,
-                            contentDescription = "Scanner un QR code"
-                        )
+                        Text("Ajouter une batterie")
                     }
-                }
-            }
+                },
+                expanded = showExtendedFab,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
+            )
         }
     ) { paddingValues ->
         Box(
@@ -735,10 +712,10 @@ fun ContentScreen(
             ) {
                 // Filtres statut
                 FilterChip(text = "Toutes", selected = filterStatus == null && filterCategoryId == null, color = MaterialTheme.colorScheme.primary, onClick = { onFilterSelected(null); onFilterByCategory(null) })
-                FilterChip(text = "Chargées", selected = filterStatus == BatteryStatus.CHARGED, color = Color(0xFF4CAF50), onClick = { onFilterSelected(BatteryStatus.CHARGED) })
-                FilterChip(text = "Déchargées", selected = filterStatus == BatteryStatus.DISCHARGED, color = Color(0xFFFFC107), onClick = { onFilterSelected(BatteryStatus.DISCHARGED) })
-                FilterChip(text = "Stockage", selected = filterStatus == BatteryStatus.STORAGE, color = Color(0xFF2196F3), onClick = { onFilterSelected(BatteryStatus.STORAGE) })
-                FilterChip(text = "H.S.", selected = filterStatus == BatteryStatus.OUT_OF_SERVICE, color = Color(0xFFE91E63), onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) })
+                FilterChip(text = "Chargées", selected = filterStatus == BatteryStatus.CHARGED, color = Success, onClick = { onFilterSelected(BatteryStatus.CHARGED) })
+                FilterChip(text = "Déchargées", selected = filterStatus == BatteryStatus.DISCHARGED, color = Warning, onClick = { onFilterSelected(BatteryStatus.DISCHARGED) })
+                FilterChip(text = "Stockage", selected = filterStatus == BatteryStatus.STORAGE, color = Info, onClick = { onFilterSelected(BatteryStatus.STORAGE) })
+                FilterChip(text = "H.S.", selected = filterStatus == BatteryStatus.OUT_OF_SERVICE, color = StatusOutOfService, onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) })
 
                 // Séparateur visuel
                 if (categories.isNotEmpty()) {

@@ -85,18 +85,6 @@ object QrCodeGenerator {
             // Fond blanc
             canvas.drawColor(Color.WHITE)
 
-            // Dessiner le QR code
-            for (x in 0 until qrWidth) {
-                for (y in 0 until qrHeight) {
-                    if (bitMatrix[x, y]) {
-                        canvas.drawPoint(x.toFloat(), y.toFloat(), Paint().apply {
-                            color = Color.BLACK
-                            strokeWidth = 1f
-                        })
-                    }
-                }
-            }
-
             // Dessiner chaque pixel du QR code
             val qrPaint = Paint().apply { color = Color.BLACK }
             for (x in 0 until qrWidth) {

@@ -31,7 +31,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import leonfvt.skyfuel_app.domain.model.BatteryStatus
+import leonfvt.skyfuel_app.presentation.theme.Info
 import leonfvt.skyfuel_app.presentation.theme.SkyFuelTheme
+import leonfvt.skyfuel_app.presentation.theme.StatusOutOfService
+import leonfvt.skyfuel_app.presentation.theme.Success
+import leonfvt.skyfuel_app.presentation.theme.Warning
 
 /**
  * Section de filtrage en scroll horizontal compact (une seule ligne)
@@ -57,25 +61,25 @@ fun FilterSection(
         FilterChip(
             text = "Chargées",
             selected = currentFilter == BatteryStatus.CHARGED,
-            color = Color(0xFF4CAF50),
+            color = Success,
             onClick = { onFilterSelected(BatteryStatus.CHARGED) }
         )
         FilterChip(
             text = "Déchargées",
             selected = currentFilter == BatteryStatus.DISCHARGED,
-            color = Color(0xFFFFC107),
+            color = Warning,
             onClick = { onFilterSelected(BatteryStatus.DISCHARGED) }
         )
         FilterChip(
             text = "Stockage",
             selected = currentFilter == BatteryStatus.STORAGE,
-            color = Color(0xFF2196F3),
+            color = Info,
             onClick = { onFilterSelected(BatteryStatus.STORAGE) }
         )
         FilterChip(
             text = "Hors service",
             selected = currentFilter == BatteryStatus.OUT_OF_SERVICE,
-            color = Color(0xFFE91E63),
+            color = StatusOutOfService,
             onClick = { onFilterSelected(BatteryStatus.OUT_OF_SERVICE) }
         )
     }

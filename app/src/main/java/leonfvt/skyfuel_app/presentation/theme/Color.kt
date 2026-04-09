@@ -23,6 +23,7 @@ val StatusInUse = Color(0xFF2196F3) // Blue
 val StatusMaintenance = Color(0xFFFF9800) // Orange  
 val StatusDepleted = Color(0xFFE53935) // Red
 val StatusDecommissioned = Color(0xFF757575) // Gray
+val StatusOutOfService = Color(0xFFE91E63) // Pink
 
 // Background & Surface colors
 val LightBackground = Color(0xFFF5F7FA)
