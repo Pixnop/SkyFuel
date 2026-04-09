@@ -37,6 +37,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.BatteryUnknown
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Refresh
@@ -90,6 +91,8 @@ import leonfvt.skyfuel_app.presentation.component.AlertsSection
 import leonfvt.skyfuel_app.presentation.component.BatteryCard
 import leonfvt.skyfuel_app.presentation.component.BatteryGridCard
 import leonfvt.skyfuel_app.presentation.component.DashboardStats
+import leonfvt.skyfuel_app.presentation.component.QrLabelPrintDialog
+import leonfvt.skyfuel_app.util.QrLabelPdfGenerator
 import leonfvt.skyfuel_app.presentation.component.FilterChip
 import leonfvt.skyfuel_app.presentation.component.QrScannerDialog
 import leonfvt.skyfuel_app.presentation.component.SearchBar
@@ -127,6 +130,7 @@ fun HomeScreen(
     // État pour la boîte de dialogue de scan QR code
     var showQrScanner by remember { mutableStateOf(false) }
     var isSearchingBattery by remember { mutableStateOf(false) }
+    var showQrLabelDialog by remember { mutableStateOf(false) }
     
     // État pour la fonctionnalité de rafraîchissement
     var isRefreshing by remember { mutableStateOf(false) }
@@ -154,6 +158,15 @@ fun HomeScreen(
         }
     }
     
+    // Dialog d'impression d'étiquettes QR
+    if (showQrLabelDialog && state.batteries.isNotEmpty()) {
+        QrLabelPrintDialog(
+            batteries = state.batteries,
+            labelGenerator = QrLabelPdfGenerator(),
+            onDismiss = { showQrLabelDialog = false }
+        )
+    }
+
     // Afficher la boîte de dialogue de scan QR code si nécessaire
     if (showQrScanner) {
         // Créer une nouvelle instance du ViewModel QrCode à chaque scan
@@ -239,6 +252,21 @@ fun HomeScreen(
                         )
                     }
                     
+                    // Bouton Impression étiquettes QR
+                    IconButton(
+                        onClick = { showQrLabelDialog = true },
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Print,
+                            contentDescription = "Imprimer étiquettes QR",
+                            modifier = Modifier.size(22.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
                     // Bouton Paramètres
                     IconButton(
                         onClick = onNavigateToSettings,
