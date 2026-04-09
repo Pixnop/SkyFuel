@@ -20,102 +20,86 @@ import javax.inject.Singleton
 /**
  * Générateur de planches d'étiquettes QR code au format PDF.
  *
- * Chaque étiquette contient :
- * - Le QR code de la batterie
- * - L'identifiant SF-XXX
- * - Le nom (marque + modèle)
- * - Les specs (type, capacité)
- *
- * Tailles d'étiquettes optimisées pour batteries de drone :
- * - SMALL  : 20x25mm — petites batteries racing (1100-1500mAh)
- * - MEDIUM : 25x30mm — batteries standard (3000-5000mAh)
- * - LARGE  : 30x40mm — grosses batteries (>5000mAh)
- *
- * Disposition sur page A4 en grille avec marges de découpe.
+ * Supporte des tailles d'étiquettes différentes par batterie.
+ * Utilise un algorithme shelf-packing pour minimiser le gaspillage de papier
+ * lorsque les étiquettes ont des tailles mixtes.
  */
 @Singleton
 class QrLabelPdfGenerator @Inject constructor() {
 
+    data class LabelDimensions(
+        val widthMm: Float,
+        val heightMm: Float
+    ) {
+        val qrSizeMm: Float get() = (widthMm * 0.65f).coerceAtMost(heightMm * 0.5f)
+    }
+
     enum class LabelSize(
         val widthMm: Float,
         val heightMm: Float,
-        val qrSizeMm: Float,
         val displayName: String
     ) {
-        SMALL(20f, 25f, 14f, "Petit (20×25mm)"),
-        MEDIUM(25f, 35f, 18f, "Moyen (25×35mm)"),
-        LARGE(35f, 45f, 25f, "Grand (35×45mm)")
-    }
+        SMALL(20f, 25f, "S"),
+        MEDIUM(25f, 35f, "M"),
+        LARGE(35f, 45f, "L");
 
-    companion object {
-        // A4 en points (72 dpi)
-        private const val PAGE_WIDTH = 595
-        private const val PAGE_HEIGHT = 842
-        private const val MM_TO_POINTS = 2.835f // 1mm = 2.835 points (72dpi)
-        private const val MARGIN_MM = 10f
+        fun toDimensions() = LabelDimensions(widthMm, heightMm)
     }
 
     /**
-     * Génère un PDF de planches d'étiquettes QR code
+     * Une étiquette à placer : batterie + dimensions spécifiques
+     */
+    data class LabelEntry(
+        val battery: Battery,
+        val dimensions: LabelDimensions
+    )
+
+    companion object {
+        private const val PAGE_WIDTH = 595
+        private const val PAGE_HEIGHT = 842
+        private const val MM_TO_POINTS = 2.835f
+        private const val MARGIN_MM = 10f
+        private const val GAP_MM = 2f
+    }
+
+    /**
+     * Génère un PDF avec des étiquettes de tailles mixtes, agencées pour minimiser le gaspillage.
      *
      * @param context Context Android
-     * @param batteries Liste des batteries à imprimer
-     * @param labelSize Taille des étiquettes
-     * @param copies Nombre de copies par batterie
+     * @param entries Liste d'étiquettes (batterie + taille individuelle)
      * @return Fichier PDF ou null en cas d'erreur
      */
     fun generateLabelSheet(
         context: Context,
-        batteries: List<Battery>,
-        labelSize: LabelSize = LabelSize.MEDIUM,
-        copies: Int = 1
+        entries: List<LabelEntry>
     ): File? {
-        if (batteries.isEmpty()) return null
+        if (entries.isEmpty()) return null
 
         return try {
             val pdfDocument = PdfDocument()
-
-            val labelW = (labelSize.widthMm * MM_TO_POINTS).toInt()
-            val labelH = (labelSize.heightMm * MM_TO_POINTS).toInt()
             val margin = (MARGIN_MM * MM_TO_POINTS).toInt()
-            val gap = (2f * MM_TO_POINTS).toInt() // 2mm entre étiquettes
-
+            val gap = (GAP_MM * MM_TO_POINTS).toInt()
             val usableW = PAGE_WIDTH - 2 * margin
             val usableH = PAGE_HEIGHT - 2 * margin
 
-            val cols = (usableW + gap) / (labelW + gap)
-            val rows = (usableH + gap) / (labelH + gap)
-            val labelsPerPage = cols * rows
+            // Shelf-packing : trier par hauteur décroissante pour optimiser
+            val sortedEntries = entries.sortedByDescending { it.dimensions.heightMm }
 
-            // Générer la liste d'étiquettes (avec copies)
-            val allLabels = batteries.flatMap { battery -> List(copies) { battery } }
+            val pages = packLabels(sortedEntries, usableW, usableH, margin, gap)
 
-            var pageNumber = 0
-            var labelIndex = 0
-
-            while (labelIndex < allLabels.size) {
-                pageNumber++
-                val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageNumber).create()
+            pages.forEachIndexed { pageIdx, placements ->
+                val pageInfo = PdfDocument.PageInfo.Builder(PAGE_WIDTH, PAGE_HEIGHT, pageIdx + 1).create()
                 val page = pdfDocument.startPage(pageInfo)
                 val canvas = page.canvas
-
-                // Fond blanc
                 canvas.drawColor(Color.WHITE)
 
-                // Dessiner les repères de coupe en coin
-                drawCropMarks(canvas, margin, labelW, labelH, cols, rows, gap)
-
-                // Dessiner les étiquettes
-                for (row in 0 until rows) {
-                    for (col in 0 until cols) {
-                        if (labelIndex >= allLabels.size) break
-
-                        val x = margin + col * (labelW + gap)
-                        val y = margin + row * (labelH + gap)
-
-                        drawLabel(canvas, allLabels[labelIndex], x.toFloat(), y.toFloat(), labelW.toFloat(), labelH.toFloat(), labelSize)
-                        labelIndex++
-                    }
+                for (placement in placements) {
+                    drawLabel(
+                        canvas, placement.entry.battery,
+                        placement.x, placement.y,
+                        placement.w, placement.h,
+                        placement.entry.dimensions
+                    )
                 }
 
                 // Pied de page
@@ -125,20 +109,17 @@ class QrLabelPdfGenerator @Inject constructor() {
                     textAlign = Paint.Align.CENTER
                 }
                 canvas.drawText(
-                    "SkyFuel — Page $pageNumber — ${LocalDate.now()}",
-                    PAGE_WIDTH / 2f,
-                    PAGE_HEIGHT - 10f,
-                    footerPaint
+                    "SkyFuel — Page ${pageIdx + 1}/${pages.size} — ${LocalDate.now()}",
+                    PAGE_WIDTH / 2f, PAGE_HEIGHT - 10f, footerPaint
                 )
 
                 pdfDocument.finishPage(page)
             }
 
-            // Sauvegarder
             val outputDir = File(context.cacheDir, "labels")
             if (!outputDir.exists()) outputDir.mkdirs()
 
-            val fileName = "skyfuel_labels_${labelSize.name.lowercase()}_${LocalDate.now()}.pdf"
+            val fileName = "skyfuel_labels_${entries.size}x_${LocalDate.now()}.pdf"
             val outputFile = File(outputDir, fileName)
             FileOutputStream(outputFile).use { pdfDocument.writeTo(it) }
             pdfDocument.close()
@@ -151,14 +132,176 @@ class QrLabelPdfGenerator @Inject constructor() {
     }
 
     /**
-     * Dessine une étiquette individuelle
+     * Rétro-compatibilité : taille unique pour toutes les batteries
      */
+    fun generateLabelSheet(
+        context: Context,
+        batteries: List<Battery>,
+        dimensions: LabelDimensions = LabelSize.MEDIUM.toDimensions(),
+        copies: Int = 1
+    ): File? {
+        val entries = batteries.flatMap { battery ->
+            List(copies) { LabelEntry(battery, dimensions) }
+        }
+        return generateLabelSheet(context, entries)
+    }
+
+    // ─── Skyline bin-packing algorithm ───
+    // Optimise le placement pour minimiser le gaspillage de papier.
+    // Utilise un "skyline" (ligne d'horizon) pour tracker l'espace disponible
+    // et placer les petites étiquettes dans les trous laissés par les grandes.
+
+    private data class Placement(
+        val entry: LabelEntry,
+        val x: Float, val y: Float,
+        val w: Float, val h: Float
+    )
+
+    private data class SkylineSegment(val x: Float, val y: Float, val width: Float)
+
+    /**
+     * Skyline bin-packing : place les étiquettes en remplissant les espaces vides.
+     * Trie par hauteur décroissante puis par largeur décroissante pour optimiser.
+     * Quand une étiquette est placée, le skyline est mis à jour.
+     */
+    private fun packLabels(
+        entries: List<LabelEntry>,
+        usableW: Int, usableH: Int,
+        margin: Int, gap: Int
+    ): List<List<Placement>> {
+        val pages = mutableListOf<MutableList<Placement>>()
+        val remaining = entries.toMutableList()
+
+        while (remaining.isNotEmpty()) {
+            val pagePlacements = mutableListOf<Placement>()
+            // Skyline = liste de segments (x, y, largeur) représentant le bord supérieur occupé
+            val skyline = mutableListOf(SkylineSegment(0f, 0f, usableW.toFloat()))
+
+            val toPlace = remaining.toMutableList()
+
+            for (entry in toPlace) {
+                val labelW = entry.dimensions.widthMm * MM_TO_POINTS + gap
+                val labelH = entry.dimensions.heightMm * MM_TO_POINTS + gap
+
+                // Chercher le meilleur segment du skyline pour cette étiquette
+                val bestFit = findBestPosition(skyline, labelW, labelH, usableW.toFloat(), usableH.toFloat())
+
+                if (bestFit != null) {
+                    val (x, y) = bestFit
+                    pagePlacements.add(
+                        Placement(entry, margin + x, margin + y, labelW - gap, labelH - gap)
+                    )
+                    updateSkyline(skyline, x, y + labelH, labelW)
+                    remaining.remove(entry)
+                }
+            }
+
+            // Si rien n'a pu être placé (ne devrait pas arriver), forcer une nouvelle page
+            if (pagePlacements.isEmpty() && remaining.isNotEmpty()) {
+                val entry = remaining.removeFirst()
+                val labelW = entry.dimensions.widthMm * MM_TO_POINTS
+                val labelH = entry.dimensions.heightMm * MM_TO_POINTS
+                pagePlacements.add(Placement(entry, margin.toFloat(), margin.toFloat(), labelW, labelH))
+            }
+
+            pages.add(pagePlacements)
+        }
+
+        return pages
+    }
+
+    /**
+     * Trouve la meilleure position sur le skyline pour une étiquette de dimensions données.
+     * Stratégie "Bottom-Left" : cherche la position la plus basse, puis la plus à gauche.
+     */
+    private fun findBestPosition(
+        skyline: List<SkylineSegment>,
+        labelW: Float, labelH: Float,
+        maxW: Float, maxH: Float
+    ): Pair<Float, Float>? {
+        var bestX = -1f
+        var bestY = Float.MAX_VALUE
+
+        for (i in skyline.indices) {
+            val seg = skyline[i]
+
+            // L'étiquette dépasse à droite ?
+            if (seg.x + labelW > maxW) continue
+
+            // Calculer la hauteur max du skyline sous cette étiquette
+            var maxSkyY = seg.y
+            var coveredWidth = 0f
+            for (j in i until skyline.size) {
+                val s = skyline[j]
+                if (s.x >= seg.x + labelW) break
+                maxSkyY = maxOf(maxSkyY, s.y)
+                coveredWidth = s.x + s.width - seg.x
+                if (coveredWidth >= labelW) break
+            }
+
+            // L'étiquette dépasse en bas ?
+            if (maxSkyY + labelH > maxH) continue
+
+            // Meilleure position (la plus basse, puis la plus à gauche)
+            if (maxSkyY < bestY || (maxSkyY == bestY && seg.x < bestX)) {
+                bestY = maxSkyY
+                bestX = seg.x
+            }
+        }
+
+        return if (bestX >= 0) Pair(bestX, bestY) else null
+    }
+
+    /**
+     * Met à jour le skyline après placement d'une étiquette.
+     */
+    private fun updateSkyline(skyline: MutableList<SkylineSegment>, x: Float, newY: Float, width: Float) {
+        val newSegments = mutableListOf<SkylineSegment>()
+
+        for (seg in skyline) {
+            val segEnd = seg.x + seg.width
+            val labelEnd = x + width
+
+            if (segEnd <= x || seg.x >= labelEnd) {
+                // Segment complètement en dehors → garder tel quel
+                newSegments.add(seg)
+            } else {
+                // Segment chevauche la zone de placement
+                if (seg.x < x) {
+                    // Partie gauche non couverte
+                    newSegments.add(SkylineSegment(seg.x, seg.y, x - seg.x))
+                }
+                if (segEnd > labelEnd) {
+                    // Partie droite non couverte
+                    newSegments.add(SkylineSegment(labelEnd, seg.y, segEnd - labelEnd))
+                }
+            }
+        }
+
+        // Ajouter le nouveau segment pour l'étiquette placée
+        newSegments.add(SkylineSegment(x, newY, width))
+
+        // Trier par x et fusionner les segments adjacents de même hauteur
+        newSegments.sortBy { it.x }
+        skyline.clear()
+        for (seg in newSegments) {
+            val last = skyline.lastOrNull()
+            if (last != null && last.x + last.width == seg.x && last.y == seg.y) {
+                skyline[skyline.lastIndex] = SkylineSegment(last.x, last.y, last.width + seg.width)
+            } else {
+                skyline.add(seg)
+            }
+        }
+    }
+
+    // ─── Label drawing ───
+
     private fun drawLabel(
         canvas: Canvas,
         battery: Battery,
         x: Float, y: Float,
         w: Float, h: Float,
-        labelSize: LabelSize
+        dims: LabelDimensions
     ) {
         // Bordure pointillée de découpe
         val borderPaint = Paint().apply {
@@ -169,67 +312,67 @@ class QrLabelPdfGenerator @Inject constructor() {
         }
         canvas.drawRoundRect(RectF(x, y, x + w, y + h), 4f, 4f, borderPaint)
 
-        val padding = 3f * MM_TO_POINTS
+        val padding = 2f * MM_TO_POINTS
         val innerW = w - 2 * padding
-        val innerX = x + padding
         var curY = y + padding
 
-        // QR Code
-        val qrSizePx = (labelSize.qrSizeMm * MM_TO_POINTS).toInt()
-        val qrBitmap = generateQrForLabel(battery, qrSizePx)
+        // === QR Code (centré) ===
+        val qrSizePx = (dims.qrSizeMm * MM_TO_POINTS).toInt().coerceAtLeast(20)
+        val qrBitmap = generateQrForLabel(battery, qrSizePx * 4)
         if (qrBitmap != null) {
-            val qrX = x + (w - qrSizePx) / 2f // Centré
-            canvas.drawBitmap(qrBitmap, null, Rect(qrX.toInt(), curY.toInt(), (qrX + qrSizePx).toInt(), (curY + qrSizePx).toInt()), null)
-            curY += qrSizePx + 2f * MM_TO_POINTS
+            val qrX = x + (w - qrSizePx) / 2f
+            canvas.drawBitmap(
+                qrBitmap, null,
+                Rect(qrX.toInt(), curY.toInt(), (qrX + qrSizePx).toInt(), (curY + qrSizePx).toInt()),
+                null
+            )
+            curY += qrSizePx + 1.5f * MM_TO_POINTS
         }
 
-        // ID SF-XXX (gros, centré)
+        // === ID SF-XXX — gros, lisible ===
+        val idFontSize = (w * 0.16f).coerceIn(8f, 24f)
         val idPaint = Paint().apply {
             color = Color.BLACK
-            textSize = when (labelSize) {
-                LabelSize.SMALL -> 8f
-                LabelSize.MEDIUM -> 10f
-                LabelSize.LARGE -> 13f
-            }
+            textSize = idFontSize
             typeface = Typeface.create(Typeface.MONOSPACE, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isAntiAlias = true
         }
         val sfId = QrCodeGenerator.generateShortId(battery.id)
         canvas.drawText(sfId, x + w / 2f, curY, idPaint)
-        curY += idPaint.textSize + 1f * MM_TO_POINTS
+        curY += idFontSize * 1.1f
 
-        // Nom (marque modèle) — tronqué si nécessaire
+        // === Séparateur ===
+        val sepPaint = Paint().apply { color = Color.LTGRAY; strokeWidth = 0.5f }
+        canvas.drawLine(x + padding, curY, x + w - padding, curY, sepPaint)
+        curY += 1.5f * MM_TO_POINTS
+
+        // === Nom (marque modèle) ===
+        val nameFontSize = (w * 0.08f).coerceIn(5f, 12f)
         val namePaint = Paint().apply {
             color = Color.DKGRAY
-            textSize = when (labelSize) {
-                LabelSize.SMALL -> 5.5f
-                LabelSize.MEDIUM -> 7f
-                LabelSize.LARGE -> 9f
-            }
+            textSize = nameFontSize
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
             textAlign = Paint.Align.CENTER
+            isAntiAlias = true
         }
         val name = "${battery.brand} ${battery.model}"
-        val maxChars = (innerW / (namePaint.textSize * 0.55f)).toInt()
-        val truncatedName = if (name.length > maxChars) name.take(maxChars - 1) + "…" else name
-        canvas.drawText(truncatedName, x + w / 2f, curY, namePaint)
-        curY += namePaint.textSize + 0.5f * MM_TO_POINTS
+        val maxChars = (innerW / (nameFontSize * 0.52f)).toInt().coerceAtLeast(5)
+        val truncName = if (name.length > maxChars) name.take(maxChars - 1) + "\u2026" else name
+        canvas.drawText(truncName, x + w / 2f, curY, namePaint)
+        curY += nameFontSize + 0.8f * MM_TO_POINTS
 
-        // Specs (type + capacité)
+        // === Specs ===
+        val specFontSize = (w * 0.07f).coerceIn(4f, 10f)
         val specPaint = Paint().apply {
             color = Color.GRAY
-            textSize = when (labelSize) {
-                LabelSize.SMALL -> 5f
-                LabelSize.MEDIUM -> 6f
-                LabelSize.LARGE -> 7.5f
-            }
+            textSize = specFontSize
             textAlign = Paint.Align.CENTER
+            isAntiAlias = true
         }
         canvas.drawText("${battery.type.name} ${battery.cells}S ${battery.capacity}mAh", x + w / 2f, curY, specPaint)
     }
 
-    /**
-     * Génère un QR code compact pour l'étiquette (sans label, petite taille)
-     */
     private fun generateQrForLabel(battery: Battery, sizePx: Int): Bitmap? {
         return try {
             val qrData = QrCodeData.forBattery(
@@ -238,40 +381,9 @@ class QrLabelPdfGenerator @Inject constructor() {
                 brand = battery.brand,
                 model = battery.model
             )
-            // QR code sans label, compact
             QrCodeGenerator.generateQrCodeBitmap(qrData.encode(), sizePx, 1)
         } catch (e: Exception) {
             null
-        }
-    }
-
-    /**
-     * Dessine les repères de coupe aux coins de la grille
-     */
-    private fun drawCropMarks(
-        canvas: Canvas,
-        margin: Int,
-        labelW: Int, labelH: Int,
-        cols: Int, rows: Int,
-        gap: Int
-    ) {
-        val markPaint = Paint().apply {
-            color = Color.LTGRAY
-            strokeWidth = 0.3f
-        }
-        val markLen = 5f
-
-        for (row in 0..rows) {
-            for (col in 0..cols) {
-                val cx = margin + col * (labelW + gap) - gap / 2f
-                val cy = margin + row * (labelH + gap) - gap / 2f
-
-                // Croix aux intersections
-                if (col > 0 && col < cols && row > 0 && row < rows) {
-                    canvas.drawLine(cx - markLen, cy, cx + markLen, cy, markPaint)
-                    canvas.drawLine(cx, cy - markLen, cx, cy + markLen, markPaint)
-                }
-            }
         }
     }
 }
